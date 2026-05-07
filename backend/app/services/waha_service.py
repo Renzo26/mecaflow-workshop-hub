@@ -1,5 +1,10 @@
+import logging
+from typing import Optional
+
 import httpx
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class WahaService:
@@ -9,7 +14,7 @@ class WahaService:
         self._session = settings.waha_session
         self._headers = {"X-Api-Key": settings.waha_api_key}
 
-    async def send_text(self, chat_id: str, text: str) -> None:
+    async def send_text(self, chat_id: str, text: str) -> Optional[str]:
         payload = {
             "session": self._session,
             "chatId": chat_id,
@@ -22,6 +27,17 @@ class WahaService:
                 headers=self._headers,
             )
             resp.raise_for_status()
+            try:
+                data = resp.json()
+            except Exception:
+                logger.warning("WAHA sendText response is not JSON")
+                return None
+        # WAHA pode retornar id em diferentes lugares dependendo da versão
+        return (
+            data.get("id")
+            or (data.get("_data") or {}).get("id", {}).get("_serialized")
+            or (data.get("key") or {}).get("id")
+        )
 
 
 waha_service = WahaService()

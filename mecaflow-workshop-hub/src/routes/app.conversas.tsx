@@ -205,7 +205,10 @@ function Conversas() {
     setEnviando(true);
     try {
       const msg = await api.post<Msg>(`/conversations/${sel}/messages`, { content: conteudo });
-      setMensagens((prev) => [...prev, msg]);
+      setMensagens((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
     } catch {
       setTexto(conteudo);
     } finally {

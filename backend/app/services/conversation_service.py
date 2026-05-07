@@ -177,7 +177,7 @@ class ConversationService:
         content: str,
         agent_name: str = "Agente",
     ) -> Message:
-        await waha_service.send_text(conv.waha_chat_id, content)
+        waha_msg_id = await waha_service.send_text(conv.waha_chat_id, content)
 
         msg = Message(
             conversation_id=conv.id,
@@ -185,6 +185,7 @@ class ConversationService:
             type=MessageType.TEXT,
             sender_name=agent_name,
             is_from_lead=False,
+            waha_message_id=waha_msg_id,
         )
         db.add(msg)
 
@@ -252,6 +253,7 @@ class ConversationService:
         self, db: AsyncSession, conv: Conversation, redis_service
     ) -> Conversation:
         await redis_service.set_human_block(conv.waha_chat_id)
+        logger.info("set_human | chat=%s redis_key=CloudSolutions_%s_block", conv.waha_chat_id, conv.waha_chat_id)
         conv.status = ConversationStatus.HUMAN
         await db.flush()
         await db.refresh(conv)
