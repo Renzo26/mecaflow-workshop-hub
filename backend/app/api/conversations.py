@@ -60,9 +60,13 @@ async def send_message(
     conv_id: uuid.UUID,
     body: SendMessageIn,
     db: AsyncSession = Depends(get_session),
+    redis: RedisService = Depends(get_redis_service),
 ):
+    from app.models.conversation import ConversationStatus
     conv = await _get_or_404(conv_id, db)
     agent_name = conv.assigned_agent_name or "Agente"
+    if conv.status == ConversationStatus.BOT:
+        await conversation_service.set_human(db, conv, redis)
     msg = await conversation_service.send_message(db, conv, body.content, agent_name)
     return MessageOut.model_validate(msg)
 

@@ -146,18 +146,35 @@ function Conversas() {
     const es = new EventSource(url);
 
     es.addEventListener("message", (e) => {
-      const msg: Msg & { conversationId: string } = JSON.parse(e.data);
-      if (msg.conversationId === sel) {
+      const raw = JSON.parse(e.data) as {
+        messageId: string;
+        conversationId: string;
+        content: string | null;
+        type: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT";
+        senderName: string;
+        isFromLead: boolean;
+        createdAt: string;
+      };
+      const msg: Msg = {
+        id: raw.messageId,
+        conversation_id: raw.conversationId,
+        content: raw.content,
+        type: raw.type,
+        sender_name: raw.senderName,
+        is_from_lead: raw.isFromLead,
+        created_at: raw.createdAt,
+      };
+      if (raw.conversationId === sel) {
         setMensagens((prev) => {
           if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, { ...msg, conversation_id: msg.conversationId }];
+          return [...prev, msg];
         });
       }
       // Atualiza last_message no painel esquerdo
       setConversas((prev) =>
         prev.map((c) =>
-          c.id === msg.conversationId
-            ? { ...c, last_message: msg.content, unread_count: c.id === sel ? 0 : c.unread_count + 1 }
+          c.id === raw.conversationId
+            ? { ...c, last_message: raw.content, unread_count: c.id === sel ? 0 : c.unread_count + 1 }
             : c
         )
       );
