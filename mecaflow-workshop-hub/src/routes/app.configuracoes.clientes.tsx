@@ -57,7 +57,7 @@ function Clientes() {
       veiculo: String(f.get("veiculo") || ""),
       placa: String(f.get("placa") || ""),
       resumo: String(f.get("resumo") || ""),
-      ultimo_atendimento: edit?.ultimo_atendimento ?? null,
+      ultimo_atendimento: String(f.get("ultimo_atendimento") || "") || null,
     };
     setSaving(true);
     try {
@@ -155,6 +155,7 @@ function Clientes() {
               <div className="space-y-2"><Label>Placa</Label><Input name="placa" defaultValue={edit?.placa ?? ""} /></div>
             </div>
             <div className="space-y-2"><Label>Veículo</Label><Input name="veiculo" defaultValue={edit?.veiculo ?? ""} /></div>
+            <div className="space-y-2"><Label>Último atendimento</Label><Input name="ultimo_atendimento" type="date" defaultValue={edit?.ultimo_atendimento ?? ""} /></div>
             <div className="space-y-2"><Label>Resumo</Label><Textarea name="resumo" defaultValue={edit?.resumo ?? ""} /></div>
             <DialogFooter>
               <Button type="submit" disabled={saving}>
