@@ -33,10 +33,15 @@ class ConversationService:
 
     async def process_webhook(self, db: AsyncSession, body: WahaWebhookRequest) -> None:
         p = body.payload
-        if p.fromMe:
-            return
+        is_from_me = bool(p.fromMe)
 
-        waha_chat_id = _normalize_chat_id(p.from_field or "")
+        # Determina o chat_id: para mensagens do bot (fromMe), o destinatário está em "to"
+        if is_from_me:
+            raw_chat_id = p.to or p.from_field or ""
+        else:
+            raw_chat_id = p.from_field or ""
+
+        waha_chat_id = _normalize_chat_id(raw_chat_id)
         if not waha_chat_id:
             return
 
@@ -51,6 +56,10 @@ class ConversationService:
             .where(Conversation.waha_chat_id == waha_chat_id)
             .options(selectinload(Conversation.labels))
         )
+
+        # Se não existe conversa e é mensagem do bot, ignora (não cria conversa sem lead)
+        if conv is None and is_from_me:
+            return
 
         notify_name = ""
         if p.inner_data:
@@ -69,12 +78,14 @@ class ConversationService:
             db.add(conv)
             await db.flush()
 
+        sender_name = "Bot" if is_from_me else lead_name
+
         msg = Message(
             conversation_id=conv.id,
             content=p.body,
             type=_detect_type(p),
-            sender_name=lead_name,
-            is_from_lead=True,
+            sender_name=sender_name,
+            is_from_lead=not is_from_me,
             media_url=p.media.url if p.media else None,
             waha_message_id=p.id,
         )
@@ -82,7 +93,8 @@ class ConversationService:
 
         conv.last_message = p.body or ""
         conv.last_message_at = datetime.now(timezone.utc)
-        conv.unread_count = (conv.unread_count or 0) + 1
+        if not is_from_me:
+            conv.unread_count = (conv.unread_count or 0) + 1
 
         await db.flush()
 
