@@ -1,0 +1,286 @@
+{
+  "name": "Agendar Reunião - CloudySolutions",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Processa a data e horário para formato correto do Google Calendar\nconst dados = $input.first().json;\n\nlet nome_lead, telefone_lead, email_lead, data_reuniao, horario_reuniao, produto_interesse, observacoes;\n\n// Se os dados vierem como JSON string no campo \"query\"\nif (dados.query) {\n  let parsed;\n  \n  // Tenta parsear como JSON\n  if (typeof dados.query === 'string') {\n    try {\n      parsed = JSON.parse(dados.query);\n    } catch (e) {\n      // Se não for JSON, tenta parsear como \"campo: valor, campo: valor\"\n      parsed = {};\n      const regex = /(\\w+):\\s*\"?([^\",}]+)\"?/g;\n      let match;\n      while ((match = regex.exec(dados.query)) !== null) {\n        parsed[match[1]] = match[2].trim();\n      }\n    }\n  } else {\n    parsed = dados.query;\n  }\n  \n  nome_lead = parsed.nome_lead || parsed.nome || 'Lead';\n  telefone_lead = parsed.telefone_lead || parsed.telefone || '';\n  email_lead = parsed.email_lead || parsed.email || '';\n  data_reuniao = parsed.data_reuniao || parsed.data_preferida || parsed.data || 'amanhã';\n  horario_reuniao = parsed.horario_reuniao || parsed.horario_preferido || parsed.horario || '10:00';\n  produto_interesse = parsed.produto_interesse || parsed.produto || 'Automação';\n  observacoes = parsed.observacoes || '';\n} else {\n  // Formato normal com campos separados\n  nome_lead = dados.nome_lead || 'Lead';\n  telefone_lead = dados.telefone_lead || '';\n  email_lead = dados.email_lead || '';\n  data_reuniao = dados.data_reuniao || dados.data_preferida || 'amanhã';\n  horario_reuniao = dados.horario_reuniao || dados.horario_preferido || '10:00';\n  produto_interesse = dados.produto_interesse || 'Automação';\n  observacoes = dados.observacoes || '';\n}\n\n// Função para converter data\nfunction converterData(dataStr, horarioStr) {\n  const hoje = new Date();\n  let dataFinal;\n  \n  const dataLower = (dataStr || 'amanhã').toLowerCase().trim();\n  \n  // Verifica se é formato ISO (2026-01-21)\n  if (/^\\d{4}-\\d{2}-\\d{2}/.test(dataStr)) {\n    const partes = dataStr.split('-');\n    dataFinal = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));\n  } else if (dataLower.includes('hoje')) {\n    dataFinal = new Date(hoje);\n  } else if (dataLower.includes('amanhã') || dataLower.includes('amanha')) {\n    dataFinal = new Date(hoje);\n    dataFinal.setDate(dataFinal.getDate() + 1);\n  } else if (dataLower.includes('segunda')) {\n    dataFinal = proximoDiaSemana(1);\n  } else if (dataLower.includes('terça') || dataLower.includes('terca')) {\n    dataFinal = proximoDiaSemana(2);\n  } else if (dataLower.includes('quarta')) {\n    dataFinal = proximoDiaSemana(3);\n  } else if (dataLower.includes('quinta')) {\n    dataFinal = proximoDiaSemana(4);\n  } else if (dataLower.includes('sexta')) {\n    dataFinal = proximoDiaSemana(5);\n  } else {\n    // Tenta DD/MM/YYYY\n    const partes = dataStr.split(/[\\/\\-]/);\n    if (partes.length === 3) {\n      if (partes[0].length === 4) {\n        dataFinal = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));\n      } else {\n        dataFinal = new Date(parseInt(partes[2]), parseInt(partes[1]) - 1, parseInt(partes[0]));\n      }\n    } else {\n      dataFinal = proximoDiaUtil();\n    }\n  }\n  \n  // Processa o horário\n  let hora = 10, minuto = 0;\n  const horarioLower = (horarioStr || '10:00').toLowerCase().trim();\n  \n  if (horarioLower.includes('manhã') || horarioLower.includes('manha')) {\n    hora = 10;\n  } else if (horarioLower.includes('tarde')) {\n    hora = 15;\n  } else {\n    const matchHora = horarioStr.match(/(\\d{1,2})[h:](\\d{2})?/);\n    if (matchHora) {\n      hora = parseInt(matchHora[1]);\n      minuto = matchHora[2] ? parseInt(matchHora[2]) : 0;\n    }\n  }\n  \n  dataFinal.setHours(hora, minuto, 0, 0);\n  return dataFinal;\n}\n\nfunction proximoDiaSemana(diaSemana) {\n  const hoje = new Date();\n  const diaAtual = hoje.getDay();\n  let diasAdicionar = diaSemana - diaAtual;\n  if (diasAdicionar <= 0) diasAdicionar += 7;\n  const proximoDia = new Date(hoje);\n  proximoDia.setDate(proximoDia.getDate() + diasAdicionar);\n  return proximoDia;\n}\n\nfunction proximoDiaUtil() {\n  const hoje = new Date();\n  const proximoDia = new Date(hoje);\n  proximoDia.setDate(proximoDia.getDate() + 1);\n  while (proximoDia.getDay() === 0 || proximoDia.getDay() === 6) {\n    proximoDia.setDate(proximoDia.getDate() + 1);\n  }\n  return proximoDia;\n}\n\nfunction formatarDataBR(data) {\n  const dias = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];\n  const dia = dias[data.getDay()];\n  const dataFormatada = data.toLocaleDateString('pt-BR');\n  const horaFormatada = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });\n  return `${dia}, ${dataFormatada} às ${horaFormatada}`;\n}\n\nconst dataInicio = converterData(data_reuniao, horario_reuniao);\nconst dataFim = new Date(dataInicio);\ndataFim.setHours(dataFim.getHours() + 1);\n\nreturn {\n  json: {\n    nome_lead,\n    telefone_lead,\n    email_lead,\n    data_reuniao,\n    horario_reuniao,\n    produto_interesse,\n    observacoes,\n    startTime: dataInicio.toISOString(),\n    endTime: dataFim.toISOString(),\n    data_iso: `${dataInicio.getFullYear()}-${String(dataInicio.getMonth() + 1).padStart(2, '0')}-${String(dataInicio.getDate()).padStart(2, '0')}`,\n    hora_fmt: `${String(dataInicio.getHours()).padStart(2, '0')}:${String(dataInicio.getMinutes()).padStart(2, '0')}`,\n    data_formatada: formatarDataBR(dataInicio),\n    titulo_evento: `📞 Call Cloudy Solutions - ${nome_lead}`,\n    descricao_evento: `🎯 Reunião de Apresentação\\n\\n👤 Lead: ${nome_lead}\\n📱 Telefone: ${telefone_lead}\\n📧 Email: ${email_lead}\\n\\n💼 Interesse: ${produto_interesse}\\n\\n📝 Observações: ${observacoes || 'Nenhuma'}\\n\\n---\\nAgendado automaticamente pelo CloudyBot`\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        112
+      ],
+      "id": "a53d3257-6086-4492-b218-0bd92dc591d0",
+      "name": "Processar Data e Horário"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "resultado-sucesso",
+              "name": "sucesso",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "mensagem-confirmacao",
+              "name": "mensagem",
+              "value": "=Agendamento realizado com sucesso para {{ $('Processar Data e Horário').item.json.data_formatada }}.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2320,
+        -112
+      ],
+      "id": "39e694de-32b8-487e-942f-0a91a4806d83",
+      "name": "Preparar Resposta Sucesso"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        112
+      ],
+      "id": "766c0884-5640-4306-a096-473dbcc61c37",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "Primary"
+        },
+        "start": "={{ $json.startTime }}",
+        "end": "={{ $json.endTime }}",
+        "additionalFields": {
+          "attendees": [
+            "={{ $json.email_lead }}"
+          ],
+          "color": "9",
+          "description": "={{ $json.descricao_evento }}",
+          "guestsCanModify": false,
+          "sendUpdates": "all",
+          "summary": "={{ $json.titulo_evento }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1488,
+        -128
+      ],
+      "id": "00bb449b-43b6-4ebb-9890-e0941b6a4d31",
+      "name": "Google Calendar - Criar Evento",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "52gdAPg2L32muaH7",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  CASE WHEN COUNT(*) = 0 THEN true ELSE false END AS disponivel,\n  COUNT(*) AS conflitos,\n  COALESCE(\n    array_agg(titulo || ' - ' || cliente || ' (' || data || ' às ' || hora || ')') \n    FILTER (WHERE titulo IS NOT NULL), \n    ARRAY[]::text[]\n  ) AS agendamentos_conflitantes\nFROM appointments\nWHERE \n  data = '{{ $json.data_iso }}'\n  AND hora = '{{ $json.hora_fmt }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1568,
+        112
+      ],
+      "id": "604f9e30-2068-4a3a-960d-f9661b935aba",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "Lqu7sYbWuVfJzgDg",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "63b2c762-38ef-41cf-b122-db36a458aaa4",
+              "leftValue": "={{ $json.disponivel }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1808,
+        112
+      ],
+      "id": "c288cb88-c286-4683-b9f5-20cdf58ba128",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO appointments (id, workshop_id, data, hora, titulo, cliente)\nVALUES (\n  gen_random_uuid(),\n  'bb3a852f-506c-49bb-974f-3c4ef99b95cf',\n  '{{ $('Processar Data e Horário').item.json.data_iso }}',\n  '{{ $('Processar Data e Horário').item.json.hora_fmt }}',\n  '{{ $('Processar Data e Horário').item.json.titulo_evento }}',\n  '{{ $('Processar Data e Horário').item.json.nome_lead }}'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2048,
+        -112
+      ],
+      "id": "9409acbf-cb7a-45f6-b5e2-6c02f5fc3ee8",
+      "name": "Execute a SQL query1",
+      "credentials": {
+        "postgres": {
+          "id": "Lqu7sYbWuVfJzgDg",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "resultado-sucesso",
+              "name": "Fracasso",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "mensagem-confirmacao",
+              "name": "mensagem",
+              "value": "=Infelizmente não temos agenda ara esse dia, poderia escolher uma data diferente por gentileza ?\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2128,
+        240
+      ],
+      "id": "b739323e-a47b-452c-83db-aa210103b702",
+      "name": "Preparar Resposta Fracasso"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Processar Data e Horário": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Resposta Sucesso": {
+      "main": [
+        []
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Processar Data e Horário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar - Criar Evento": {
+      "main": [
+        []
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Resposta Fracasso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query1": {
+      "main": [
+        [
+          {
+            "node": "Preparar Resposta Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "35547e2a-79fa-40d7-925c-74cb575bc479",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f7528a2d6c31c201d115ad7d98368c078b9873a0e9d0c8bc9290d83b79f9c2b2"
+  },
+  "id": "sZt5wsSjNdwbAUOE",
+  "tags": []
+}
