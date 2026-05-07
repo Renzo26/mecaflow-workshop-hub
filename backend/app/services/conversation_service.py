@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -12,6 +13,8 @@ from app.models.message import Message, MessageType
 from app.schemas.webhook import WahaWebhookRequest
 from app.services.sse_service import broadcaster
 from app.services.waha_service import waha_service
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_chat_id(raw: str) -> str:
@@ -61,11 +64,17 @@ class ConversationService:
         if conv is None and is_from_me:
             return
 
-        notify_name = ""
-        if p.inner_data:
-            notify_name = p.inner_data.notifyName or ""
-        lead_name = notify_name or waha_chat_id.split("@")[0]
+        # Tenta obter o nome em todas as localizações possíveis do payload WAHA
+        notify_name = (
+            p.notifyName
+            or (p.inner_data.notifyName if p.inner_data else None)
+            or ""
+        )
+        logger.info("WAHA webhook | chat=%s fromMe=%s notifyName=%r _data=%r extra=%r",
+                    waha_chat_id, is_from_me, p.notifyName,
+                    p.inner_data, getattr(p, "model_extra", {}))
         lead_phone = waha_chat_id.split("@")[0]
+        lead_name = notify_name or lead_phone
 
         if conv is None:
             conv = Conversation(
@@ -77,6 +86,9 @@ class ConversationService:
             )
             db.add(conv)
             await db.flush()
+        elif notify_name and conv.lead_name == lead_phone:
+            # Atualiza o nome se antes estava salvo como número
+            conv.lead_name = lead_name
 
         sender_name = "Bot" if is_from_me else lead_name
 

@@ -12,7 +12,7 @@ class WahaInnerData(BaseModel):
 
 
 class WahaMessagePayload(BaseModel):
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "extra": "allow"}
 
     id: str
     from_field: Optional[str] = Field(None, alias="from")
@@ -20,10 +20,13 @@ class WahaMessagePayload(BaseModel):
     body: Optional[str] = None
     fromMe: bool = False
     hasMedia: bool = False
+    notifyName: Optional[str] = None
     media: Optional[WahaMediaPayload] = None
     inner_data: Optional[WahaInnerData] = Field(None, alias="_data")
 
 
 class WahaWebhookRequest(BaseModel):
+    model_config = {"extra": "allow"}
+
     event: Optional[str] = None
     payload: WahaMessagePayload
