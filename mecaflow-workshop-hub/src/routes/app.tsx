@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { clearAuth, getSession } from "@/lib/auth";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "sonner";
 
 export const Route = createFileRoute("/app")({
   beforeLoad: () => {
@@ -25,6 +26,7 @@ function AppLayout() {
 
   return (
     <SidebarProvider>
+      <Toaster richColors position="top-right" />
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
         <div className="flex flex-1 flex-col">

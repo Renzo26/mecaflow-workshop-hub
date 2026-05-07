@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Send, MoreVertical, CheckCircle2, Tag, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -195,8 +196,13 @@ function Conversas() {
     if (!sel) return;
     try {
       const updated = await api.patch<Conv>(`/conversations/${sel}/resolve`);
-      setConversas((prev) => prev.map((c) => (c.id === sel ? updated : c)));
-    } catch { /* ignora */ }
+      setConversas((prev) =>
+        prev.map((c) => (c.id === sel ? (updated ?? { ...c, status: "RESOLVED" as ConvStatus }) : c))
+      );
+      toast.success("Conversa resolvida");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao resolver conversa");
+    }
   };
 
   const abrirGerenciarEtiquetas = () => {
