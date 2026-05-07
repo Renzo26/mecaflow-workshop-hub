@@ -15,7 +15,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
     restart: unless-stopped
     networks:
-      - easypanel
+      easypanel:
+        aliases:
+          - cloudy_meca_backend
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
@@ -34,7 +36,9 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - easypanel
+      easypanel:
+        aliases:
+          - cloudy_meca_frontend
 
 networks:
   easypanel:
