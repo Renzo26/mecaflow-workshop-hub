@@ -113,7 +113,7 @@ function Conversas() {
 
   useEffect(() => { carregarConversas(tab); }, [tab]);
 
-  // Carregar mensagens quando muda a conversa selecionada
+  // Carregar mensagens e marcar como lida ao abrir conversa
   useEffect(() => {
     if (!sel) return;
     setLoadingMsgs(true);
@@ -121,6 +121,10 @@ function Conversas() {
       .then((data) => setMensagens(data.items))
       .catch(() => {})
       .finally(() => setLoadingMsgs(false));
+    api.patch(`/conversations/${sel}/read`).catch(() => {});
+    setConversas((prev) =>
+      prev.map((c) => (c.id === sel ? { ...c, unread_count: 0 } : c))
+    );
   }, [sel]);
 
   // Auto-scroll para última mensagem
@@ -233,7 +237,7 @@ function Conversas() {
 
       <div className="grid h-[calc(100vh-12rem)] grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
         {/* Painel esquerdo */}
-        <div className="flex flex-col rounded-xl border bg-card">
+        <div className="flex flex-col overflow-hidden rounded-xl border bg-card">
           <div className="space-y-3 border-b p-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -263,23 +267,28 @@ function Conversas() {
                 onClick={() => setSel(c.id)}
                 className={`block w-full border-b p-3 text-left transition hover:bg-muted/60 ${sel === c.id ? "bg-muted" : ""}`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{c.lead_name}</span>
-                  <div className="flex items-center gap-1.5">
-                    {c.status === "RESOLVED" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
-                    {c.unread_count > 0 && (
-                      <Badge className="h-4 min-w-4 bg-primary px-1 text-[10px] text-primary-foreground">
-                        {c.unread_count}
-                      </Badge>
-                    )}
-                    <span className="text-xs text-muted-foreground">{fmtHora(c.last_message_at)}</span>
+                <div className="flex items-start gap-2.5">
+                  <LeadAvatar name={c.lead_name} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="truncate font-medium">{c.lead_name}</span>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {c.status === "RESOLVED" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                        {c.unread_count > 0 && (
+                          <Badge className="h-4 min-w-4 bg-primary px-1 text-[10px] text-primary-foreground">
+                            {c.unread_count}
+                          </Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground">{fmtHora(c.last_message_at)}</span>
+                      </div>
+                    </div>
+                    <p className="mt-0.5 truncate text-sm text-muted-foreground">{c.last_message ?? "—"}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {c.labels.map((l) => (
+                        <Badge key={l.id} className={`${corLabel(l.name)} border-0 text-xs`}>{l.name}</Badge>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <p className="mt-1 truncate text-sm text-muted-foreground">{c.last_message ?? "—"}</p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {c.labels.map((l) => (
-                    <Badge key={l.id} className={`${corLabel(l.name)} border-0 text-xs`}>{l.name}</Badge>
-                  ))}
                 </div>
               </button>
             ))}
@@ -287,11 +296,13 @@ function Conversas() {
         </div>
 
         {/* Painel direito */}
-        <div className="flex flex-col rounded-xl border bg-card">
+        <div className="flex flex-col overflow-hidden rounded-xl border bg-card">
           {ativa ? (
             <>
               <div className="flex items-center justify-between border-b p-4">
-                <div>
+                <div className="flex items-center gap-3">
+                  <LeadAvatar name={ativa.lead_name} size="md" />
+                  <div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold">{ativa.lead_name}</p>
                     {ativa.status === "RESOLVED" && (
@@ -305,6 +316,7 @@ function Conversas() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">{ativa.lead_phone}</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex flex-wrap gap-1.5">
@@ -417,6 +429,21 @@ function Conversas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function LeadAvatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
+  const initials = name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "?";
+  const sz = size === "md" ? "h-11 w-11 text-base" : "h-9 w-9 text-sm";
+  return (
+    <div className={`flex shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary ${sz}`}>
+      {initials}
     </div>
   );
 }

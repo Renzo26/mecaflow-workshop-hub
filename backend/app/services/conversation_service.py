@@ -191,6 +191,11 @@ class ConversationService:
         })
         return msg
 
+    async def mark_as_read(self, db: AsyncSession, conv: Conversation) -> None:
+        conv.unread_count = 0
+        await db.flush()
+        await broadcaster.publish("conversation", {"id": str(conv.id), "unreadCount": 0})
+
     async def resolve(self, db: AsyncSession, conv: Conversation) -> Conversation:
         conv.status = ConversationStatus.RESOLVED
         conv.unread_count = 0

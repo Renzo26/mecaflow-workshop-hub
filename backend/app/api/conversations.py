@@ -67,6 +67,15 @@ async def send_message(
     return MessageOut.model_validate(msg)
 
 
+@router.patch("/{conv_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_as_read(
+    conv_id: uuid.UUID,
+    db: AsyncSession = Depends(get_session),
+):
+    conv = await _get_or_404(conv_id, db)
+    await conversation_service.mark_as_read(db, conv)
+
+
 @router.patch("/{conv_id}/resolve", response_model=ConversationDetail)
 async def resolve(
     conv_id: uuid.UUID,

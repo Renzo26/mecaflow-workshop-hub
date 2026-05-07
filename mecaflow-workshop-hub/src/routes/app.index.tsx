@@ -16,6 +16,7 @@ type Conv = {
   lead_name: string;
   last_message: string | null;
   status: string;
+  unread_count: number;
   labels: { id: string; name: string }[];
 };
 
@@ -62,7 +63,7 @@ function Dashboard() {
       const abertasCount = todas.filter((c) => c.status !== "RESOLVED").length;
       setAbertas(abertasCount);
       setResolvidas(resolved.length);
-      setAguardando(todas.filter((c) => c.status === "UNASSIGNED").length);
+      setAguardando(todas.filter((c) => c.unread_count > 0).length);
       setAgendamentos(ags.sort((a, b) => a.hora.localeCompare(b.hora)));
     }).catch(() => {});
   }, []);
