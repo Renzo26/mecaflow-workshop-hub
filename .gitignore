@@ -1,0 +1,24 @@
+# Backend
+backend/.env
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/**/*.pyc
+backend/.venv/
+backend/venv/
+
+# Frontend
+mecaflow-workshop-hub/node_modules/
+mecaflow-workshop-hub/dist/
+mecaflow-workshop-hub/dist-ssr/
+mecaflow-workshop-hub/.output/
+mecaflow-workshop-hub/.vinxi/
+mecaflow-workshop-hub/.tanstack/
+mecaflow-workshop-hub/.nitro/
+mecaflow-workshop-hub/.wrangler/
+mecaflow-workshop-hub/*.local
+mecaflow-workshop-hub/.dev.vars
+
+# OS
+.DS_Store
+Thumbs.db

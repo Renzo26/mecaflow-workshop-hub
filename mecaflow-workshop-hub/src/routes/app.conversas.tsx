@@ -1,0 +1,437 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Search, Send, MoreVertical, CheckCircle2, Tag, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { api } from "@/lib/api";
+
+export const Route = createFileRoute("/app/conversas")({
+  head: () => ({ meta: [{ title: "Conversas — MecaFlow" }] }),
+  component: Conversas,
+});
+
+type ConvStatus = "BOT" | "HUMAN" | "UNASSIGNED" | "RESOLVED";
+type Label = { id: string; name: string; color: string | null };
+type Conv = {
+  id: string;
+  waha_chat_id: string;
+  lead_name: string;
+  lead_phone: string;
+  status: ConvStatus;
+  assigned_agent_id: string | null;
+  assigned_agent_name: string | null;
+  unread_count: number;
+  last_message: string | null;
+  last_message_at: string | null;
+  labels: Label[];
+};
+type Msg = {
+  id: string;
+  conversation_id: string;
+  content: string | null;
+  type: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT";
+  sender_name: string;
+  is_from_lead: boolean;
+  created_at: string;
+};
+
+const LABEL_COLORS: Record<string, string> = {
+  Agendamento: "bg-primary/15 text-primary",
+  Orçamento: "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400",
+  Suporte: "bg-accent text-accent-foreground",
+  VIP: "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400",
+};
+const LABELS_PREDEFINIDOS = Object.keys(LABEL_COLORS);
+const corLabel = (name: string) => LABEL_COLORS[name] ?? "bg-muted text-muted-foreground";
+
+const TAB_MAP: Record<string, string> = {
+  todas: "ALL",
+  abertas: "UNASSIGNED",
+  resolvidas: "RESOLVED",
+};
+
+function fmtHora(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const hoje = new Date();
+  if (d.toDateString() === hoje.toDateString())
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+const BASE_URL = (import.meta.env?.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+
+function Conversas() {
+  const [conversas, setConversas] = useState<Conv[]>([]);
+  const [loadingConvs, setLoadingConvs] = useState(true);
+  const [tab, setTab] = useState<"todas" | "abertas" | "resolvidas">("todas");
+  const [busca, setBusca] = useState("");
+  const [sel, setSel] = useState<string | null>(null);
+
+  const [mensagens, setMensagens] = useState<Msg[]>([]);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  const [etiquetaDialogOpen, setEtiquetaDialogOpen] = useState(false);
+  const [etiquetasSel, setEtiquetasSel] = useState<string[]>([]);
+  const [salvandoEtiquetas, setSalvandoEtiquetas] = useState(false);
+
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const ativa = conversas.find((c) => c.id === sel) ?? null;
+
+  // Carregar conversas
+  const carregarConversas = async (t: string) => {
+    setLoadingConvs(true);
+    try {
+      const data = await api.get<Conv[]>(`/conversations?tab=${TAB_MAP[t]}`);
+      setConversas(data);
+      if (!sel && data.length > 0) setSel(data[0].id);
+    } catch {
+      // ignora erro silenciosamente
+    } finally {
+      setLoadingConvs(false);
+    }
+  };
+
+  useEffect(() => { carregarConversas(tab); }, [tab]);
+
+  // Carregar mensagens quando muda a conversa selecionada
+  useEffect(() => {
+    if (!sel) return;
+    setLoadingMsgs(true);
+    api.get<{ items: Msg[] }>(`/conversations/${sel}/messages`)
+      .then((data) => setMensagens(data.items))
+      .catch(() => {})
+      .finally(() => setLoadingMsgs(false));
+  }, [sel]);
+
+  // Auto-scroll para última mensagem
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [mensagens]);
+
+  // SSE — atualizações em tempo real
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    const url = token
+      ? `${BASE_URL}/api/sse/events?token=${token}`
+      : `${BASE_URL}/api/sse/events`;
+    const es = new EventSource(url);
+
+    es.addEventListener("message", (e) => {
+      const msg: Msg & { conversationId: string } = JSON.parse(e.data);
+      if (msg.conversationId === sel) {
+        setMensagens((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, { ...msg, conversation_id: msg.conversationId }];
+        });
+      }
+      // Atualiza last_message no painel esquerdo
+      setConversas((prev) =>
+        prev.map((c) =>
+          c.id === msg.conversationId
+            ? { ...c, last_message: msg.content, unread_count: c.id === sel ? 0 : c.unread_count + 1 }
+            : c
+        )
+      );
+    });
+
+    es.addEventListener("conversation", (e) => {
+      const updated = JSON.parse(e.data) as Partial<Conv> & { id: string };
+      setConversas((prev) =>
+        prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+      );
+    });
+
+    es.onerror = () => es.close();
+    return () => es.close();
+  }, [sel]);
+
+  const filtradas = useMemo(() => {
+    return conversas.filter((c) => {
+      if (!busca) return true;
+      return c.lead_name.toLowerCase().includes(busca.toLowerCase());
+    });
+  }, [conversas, busca]);
+
+  const enviar = async () => {
+    if (!sel || !texto.trim() || enviando) return;
+    const conteudo = texto.trim();
+    setTexto("");
+    setEnviando(true);
+    try {
+      const msg = await api.post<Msg>(`/conversations/${sel}/messages`, { content: conteudo });
+      setMensagens((prev) => [...prev, msg]);
+    } catch {
+      setTexto(conteudo);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const resolverConversa = async () => {
+    if (!sel) return;
+    try {
+      const updated = await api.patch<Conv>(`/conversations/${sel}/resolve`);
+      setConversas((prev) => prev.map((c) => (c.id === sel ? updated : c)));
+    } catch { /* ignora */ }
+  };
+
+  const abrirGerenciarEtiquetas = () => {
+    if (ativa) {
+      setEtiquetasSel(ativa.labels.map((l) => l.name));
+      setEtiquetaDialogOpen(true);
+    }
+  };
+
+  const salvarEtiquetas = async () => {
+    if (!sel || !ativa) return;
+    setSalvandoEtiquetas(true);
+    try {
+      const nomesAtuais = ativa.labels.map((l) => l.name);
+      const adicionar = etiquetasSel.filter((n) => !nomesAtuais.includes(n));
+      const remover = ativa.labels.filter((l) => !etiquetasSel.includes(l.name));
+
+      await Promise.all([
+        ...adicionar.map((name) => api.post(`/conversations/${sel}/labels`, { name })),
+        ...remover.map((l) => api.delete(`/conversations/${sel}/labels/${l.id}`)),
+      ]);
+
+      // Recarrega conversa para pegar labels atualizados
+      const updated = await api.get<Conv>(`/conversations/${sel}`);
+      setConversas((prev) => prev.map((c) => (c.id === sel ? updated : c)));
+      setEtiquetaDialogOpen(false);
+    } catch { /* ignora */ } finally {
+      setSalvandoEtiquetas(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="font-display text-2xl font-bold">Conversas</h1>
+        <p className="text-sm text-muted-foreground">Atenda seus clientes em um inbox unificado.</p>
+      </div>
+
+      <div className="grid h-[calc(100vh-12rem)] grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
+        {/* Painel esquerdo */}
+        <div className="flex flex-col rounded-xl border bg-card">
+          <div className="space-y-3 border-b p-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar conversa..." className="pl-9" />
+            </div>
+            <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="todas">Todas</TabsTrigger>
+                <TabsTrigger value="abertas">Abertas</TabsTrigger>
+                <TabsTrigger value="resolvidas">Resolvidas</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {loadingConvs && (
+              <div className="flex justify-center p-6">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!loadingConvs && filtradas.length === 0 && (
+              <p className="p-6 text-center text-sm text-muted-foreground">Nenhuma conversa.</p>
+            )}
+            {filtradas.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setSel(c.id)}
+                className={`block w-full border-b p-3 text-left transition hover:bg-muted/60 ${sel === c.id ? "bg-muted" : ""}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{c.lead_name}</span>
+                  <div className="flex items-center gap-1.5">
+                    {c.status === "RESOLVED" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                    {c.unread_count > 0 && (
+                      <Badge className="h-4 min-w-4 bg-primary px-1 text-[10px] text-primary-foreground">
+                        {c.unread_count}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">{fmtHora(c.last_message_at)}</span>
+                  </div>
+                </div>
+                <p className="mt-1 truncate text-sm text-muted-foreground">{c.last_message ?? "—"}</p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {c.labels.map((l) => (
+                    <Badge key={l.id} className={`${corLabel(l.name)} border-0 text-xs`}>{l.name}</Badge>
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Painel direito */}
+        <div className="flex flex-col rounded-xl border bg-card">
+          {ativa ? (
+            <>
+              <div className="flex items-center justify-between border-b p-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{ativa.lead_name}</p>
+                    {ativa.status === "RESOLVED" && (
+                      <Badge className="border-0 bg-green-100 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-400">Resolvida</Badge>
+                    )}
+                    {ativa.status === "HUMAN" && (
+                      <Badge className="border-0 bg-blue-100 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">Humano</Badge>
+                    )}
+                    {ativa.status === "BOT" && (
+                      <Badge className="border-0 bg-purple-100 text-xs text-purple-700 dark:bg-purple-900/20 dark:text-purple-400">Bot</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{ativa.lead_phone}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {ativa.labels.map((l) => (
+                      <Badge key={l.id} className={`${corLabel(l.name)} border-0`}>{l.name}</Badge>
+                    ))}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem
+                        onClick={resolverConversa}
+                        disabled={ativa.status === "RESOLVED"}
+                        className="gap-2"
+                      >
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        Resolver conversa
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={abrirGerenciarEtiquetas} className="gap-2">
+                        <Tag className="h-4 w-4" />
+                        Gerenciar etiquetas
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-3 overflow-y-auto bg-muted/30 p-4">
+                {loadingMsgs ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : mensagens.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground">Nenhuma mensagem ainda.</p>
+                ) : (
+                  mensagens.map((m) => (
+                    <Mensagem key={m.id} texto={m.content ?? ""} dele={m.is_from_lead} nome={m.sender_name} />
+                  ))
+                )}
+                <div ref={endRef} />
+              </div>
+
+              <div className="flex gap-2 border-t p-3">
+                <Input
+                  placeholder="Digite uma mensagem..."
+                  disabled={ativa.status === "RESOLVED" || enviando}
+                  value={texto}
+                  onChange={(e) => setTexto(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && enviar()}
+                />
+                <Button
+                  size="icon"
+                  disabled={ativa.status === "RESOLVED" || !texto.trim() || enviando}
+                  onClick={enviar}
+                >
+                  {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              Selecione uma conversa
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Dialog: Gerenciar etiquetas */}
+      <Dialog open={etiquetaDialogOpen} onOpenChange={setEtiquetaDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Gerenciar etiquetas</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Selecione as etiquetas para <span className="font-medium text-foreground">{ativa?.lead_name}</span>.
+          </p>
+          <div className="flex flex-wrap gap-2 py-1">
+            {LABELS_PREDEFINIDOS.map((nome) => {
+              const ativo = etiquetasSel.includes(nome);
+              return (
+                <button
+                  key={nome}
+                  type="button"
+                  onClick={() =>
+                    setEtiquetasSel((prev) =>
+                      prev.includes(nome) ? prev.filter((n) => n !== nome) : [...prev, nome]
+                    )
+                  }
+                  className={`rounded-full border px-3 py-1 text-sm font-medium transition-all ${
+                    ativo
+                      ? `${corLabel(nome)} border-transparent ring-2 ring-offset-1 ring-primary/40`
+                      : "border-border bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {nome}
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEtiquetaDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={salvarEtiquetas} disabled={salvandoEtiquetas}>
+              {salvandoEtiquetas ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function Mensagem({ texto, dele, nome }: { texto: string; dele?: boolean; nome: string }) {
+  return (
+    <div className={`flex flex-col ${dele ? "items-start" : "items-end"}`}>
+      <span className="mb-0.5 text-[11px] text-muted-foreground">{nome}</span>
+      <div
+        className={`max-w-xs rounded-2xl px-3 py-2 text-sm ${
+          dele ? "bg-card" : "bg-primary text-primary-foreground"
+        }`}
+      >
+        {texto}
+      </div>
+    </div>
+  );
+}
