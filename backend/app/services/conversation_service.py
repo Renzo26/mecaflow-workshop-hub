@@ -212,6 +212,7 @@ class ConversationService:
         conv.status = ConversationStatus.RESOLVED
         conv.unread_count = 0
         await db.flush()
+        await db.refresh(conv)
         await broadcaster.publish("conversation", {"id": str(conv.id), "status": conv.status.value})
         return conv
 
@@ -222,6 +223,7 @@ class ConversationService:
         conv.assigned_agent_name = agent_name
         conv.status = ConversationStatus.HUMAN
         await db.flush()
+        await db.refresh(conv)
         await broadcaster.publish("conversation", {
             "id": str(conv.id),
             "status": conv.status.value,
@@ -236,6 +238,7 @@ class ConversationService:
         await redis_service.set_human_block(conv.waha_chat_id)
         conv.status = ConversationStatus.HUMAN
         await db.flush()
+        await db.refresh(conv)
         await broadcaster.publish("conversation", {"id": str(conv.id), "status": conv.status.value})
         return conv
 
@@ -245,6 +248,7 @@ class ConversationService:
         await redis_service.del_human_block(conv.waha_chat_id)
         conv.status = ConversationStatus.BOT
         await db.flush()
+        await db.refresh(conv)
         await broadcaster.publish("conversation", {"id": str(conv.id), "status": conv.status.value})
         return conv
 
