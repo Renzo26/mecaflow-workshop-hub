@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, Send, MoreVertical, CheckCircle2, Tag, Loader2 } from "lucide-react";
+import { Search, Send, MoreVertical, CheckCircle2, Tag, Loader2, RotateCcw, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -93,6 +93,10 @@ function Conversas() {
   const [etiquetaDialogOpen, setEtiquetaDialogOpen] = useState(false);
   const [etiquetasSel, setEtiquetasSel] = useState<string[]>([]);
   const [salvandoEtiquetas, setSalvandoEtiquetas] = useState(false);
+
+  const [nomeDialogOpen, setNomeDialogOpen] = useState(false);
+  const [nomeEdit, setNomeEdit] = useState("");
+  const [salvandoNome, setSalvandoNome] = useState(false);
 
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -205,6 +209,41 @@ function Conversas() {
     }
   };
 
+  const reabrirConversa = async () => {
+    if (!sel) return;
+    try {
+      const updated = await api.patch<Conv>(`/conversations/${sel}/reopen`);
+      setConversas((prev) =>
+        prev.map((c) => (c.id === sel ? (updated ?? { ...c, status: "UNASSIGNED" as ConvStatus }) : c))
+      );
+      toast.success("Conversa reaberta");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao reabrir conversa");
+    }
+  };
+
+  const abrirEditarNome = () => {
+    if (ativa) {
+      setNomeEdit(ativa.lead_name);
+      setNomeDialogOpen(true);
+    }
+  };
+
+  const salvarNome = async () => {
+    if (!sel || !nomeEdit.trim()) return;
+    setSalvandoNome(true);
+    try {
+      const updated = await api.patch<Conv>(`/conversations/${sel}/name`, { lead_name: nomeEdit.trim() });
+      setConversas((prev) => prev.map((c) => (c.id === sel ? (updated ?? { ...c, lead_name: nomeEdit.trim() }) : c)));
+      setNomeDialogOpen(false);
+      toast.success("Nome atualizado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao salvar nome");
+    } finally {
+      setSalvandoNome(false);
+    }
+  };
+
   const abrirGerenciarEtiquetas = () => {
     if (ativa) {
       setEtiquetasSel(ativa.labels.map((l) => l.name));
@@ -311,6 +350,13 @@ function Conversas() {
                   <div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold">{ativa.lead_name}</p>
+                    <button
+                      onClick={abrirEditarNome}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      title="Editar nome"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
                     {ativa.status === "RESOLVED" && (
                       <Badge className="border-0 bg-green-100 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-400">Resolvida</Badge>
                     )}
@@ -337,14 +383,17 @@ function Conversas() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52">
-                      <DropdownMenuItem
-                        onClick={resolverConversa}
-                        disabled={ativa.status === "RESOLVED"}
-                        className="gap-2"
-                      >
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        Resolver conversa
-                      </DropdownMenuItem>
+                      {ativa.status !== "RESOLVED" ? (
+                        <DropdownMenuItem onClick={resolverConversa} className="gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          Resolver conversa
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onClick={reabrirConversa} className="gap-2">
+                          <RotateCcw className="h-4 w-4 text-blue-500" />
+                          Reabrir conversa
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={abrirGerenciarEtiquetas} className="gap-2">
                         <Tag className="h-4 w-4" />
@@ -394,6 +443,28 @@ function Conversas() {
           )}
         </div>
       </div>
+
+      {/* Dialog: Editar nome */}
+      <Dialog open={nomeDialogOpen} onOpenChange={setNomeDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Editar nome do cliente</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={nomeEdit}
+            onChange={(e) => setNomeEdit(e.target.value)}
+            placeholder="Nome do cliente"
+            onKeyDown={(e) => e.key === "Enter" && salvarNome()}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNomeDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={salvarNome} disabled={salvandoNome || !nomeEdit.trim()}>
+              {salvandoNome ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: Gerenciar etiquetas */}
       <Dialog open={etiquetaDialogOpen} onOpenChange={setEtiquetaDialogOpen}>

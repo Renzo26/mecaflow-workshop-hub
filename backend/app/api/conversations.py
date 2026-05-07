@@ -76,6 +76,29 @@ async def mark_as_read(
     await conversation_service.mark_as_read(db, conv)
 
 
+@router.patch("/{conv_id}/reopen", response_model=ConversationDetail)
+async def reopen(
+    conv_id: uuid.UUID,
+    db: AsyncSession = Depends(get_session),
+):
+    conv = await _get_or_404(conv_id, db)
+    return await conversation_service.reopen(db, conv)
+
+
+@router.patch("/{conv_id}/name", response_model=ConversationDetail)
+async def update_name(
+    conv_id: uuid.UUID,
+    body: dict,
+    db: AsyncSession = Depends(get_session),
+):
+    conv = await _get_or_404(conv_id, db)
+    name = (body.get("lead_name") or "").strip()
+    if not name:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="Nome inválido")
+    return await conversation_service.update_name(db, conv, name)
+
+
 @router.patch("/{conv_id}/resolve", response_model=ConversationDetail)
 async def resolve(
     conv_id: uuid.UUID,

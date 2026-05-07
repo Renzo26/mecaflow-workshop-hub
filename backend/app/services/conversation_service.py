@@ -208,6 +208,22 @@ class ConversationService:
         await db.flush()
         await broadcaster.publish("conversation", {"id": str(conv.id), "unreadCount": 0})
 
+    async def reopen(self, db: AsyncSession, conv: Conversation) -> Conversation:
+        conv.status = ConversationStatus.UNASSIGNED
+        conv.assigned_agent_id = None
+        conv.assigned_agent_name = None
+        await db.flush()
+        await db.refresh(conv)
+        await broadcaster.publish("conversation", {"id": str(conv.id), "status": conv.status.value})
+        return conv
+
+    async def update_name(self, db: AsyncSession, conv: Conversation, lead_name: str) -> Conversation:
+        conv.lead_name = lead_name.strip()
+        await db.flush()
+        await db.refresh(conv)
+        await broadcaster.publish("conversation", {"id": str(conv.id), "leadName": conv.lead_name})
+        return conv
+
     async def resolve(self, db: AsyncSession, conv: Conversation) -> Conversation:
         conv.status = ConversationStatus.RESOLVED
         conv.unread_count = 0
