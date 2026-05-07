@@ -58,8 +58,9 @@ const LABEL_COLORS: Record<string, string> = {
   Suporte: "bg-accent text-accent-foreground",
   VIP: "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400",
 };
-const LABELS_PREDEFINIDOS = Object.keys(LABEL_COLORS);
 const corLabel = (name: string) => LABEL_COLORS[name] ?? "bg-muted text-muted-foreground";
+
+type Etiqueta = { id: string; nome: string; cor: string | null };
 
 const TAB_MAP: Record<string, string> = {
   todas: "ALL",
@@ -93,6 +94,7 @@ function Conversas() {
   const [etiquetaDialogOpen, setEtiquetaDialogOpen] = useState(false);
   const [etiquetasSel, setEtiquetasSel] = useState<string[]>([]);
   const [salvandoEtiquetas, setSalvandoEtiquetas] = useState(false);
+  const [labelsDisponiveis, setLabelsDisponiveis] = useState<Etiqueta[]>([]);
 
   const [nomeDialogOpen, setNomeDialogOpen] = useState(false);
   const [nomeEdit, setNomeEdit] = useState("");
@@ -117,6 +119,10 @@ function Conversas() {
   };
 
   useEffect(() => { carregarConversas(tab); }, [tab]);
+
+  useEffect(() => {
+    api.get<Etiqueta[]>("/labels").then(setLabelsDisponiveis).catch(() => {});
+  }, []);
 
   // Carregar mensagens e marcar como lida ao abrir conversa
   useEffect(() => {
@@ -496,27 +502,32 @@ function Conversas() {
             Selecione as etiquetas para <span className="font-medium text-foreground">{ativa?.lead_name}</span>.
           </p>
           <div className="flex flex-wrap gap-2 py-1">
-            {LABELS_PREDEFINIDOS.map((nome) => {
-              const ativo = etiquetasSel.includes(nome);
-              return (
-                <button
-                  key={nome}
-                  type="button"
-                  onClick={() =>
-                    setEtiquetasSel((prev) =>
-                      prev.includes(nome) ? prev.filter((n) => n !== nome) : [...prev, nome]
-                    )
-                  }
-                  className={`rounded-full border px-3 py-1 text-sm font-medium transition-all ${
-                    ativo
-                      ? `${corLabel(nome)} border-transparent ring-2 ring-offset-1 ring-primary/40`
-                      : "border-border bg-background text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {nome}
-                </button>
-              );
-            })}
+            {labelsDisponiveis.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma etiqueta cadastrada.</p>
+            ) : (
+              labelsDisponiveis.map((l) => {
+                const ativo = etiquetasSel.includes(l.nome);
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() =>
+                      setEtiquetasSel((prev) =>
+                        prev.includes(l.nome) ? prev.filter((n) => n !== l.nome) : [...prev, l.nome]
+                      )
+                    }
+                    className={`rounded-full border px-3 py-1 text-sm font-medium transition-all ${
+                      ativo
+                        ? "border-transparent ring-2 ring-offset-1 ring-primary/40 text-white"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted"
+                    }`}
+                    style={ativo ? { backgroundColor: l.cor ?? "#64748b" } : {}}
+                  >
+                    {l.nome}
+                  </button>
+                );
+              })
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEtiquetaDialogOpen(false)}>Cancelar</Button>
