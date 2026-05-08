@@ -282,7 +282,10 @@ function Conversas() {
       const remover = ativa.labels.filter((l) => !etiquetasSel.includes(l.name));
 
       await Promise.all([
-        ...adicionar.map((name) => api.post(`/conversations/${sel}/labels`, { name })),
+        ...adicionar.map((name) => {
+          const found = labelsDisponiveis.find((l) => l.nome === name);
+          return api.post(`/conversations/${sel}/labels`, { name, color: found?.cor ?? null });
+        }),
         ...remover.map((l) => api.delete(`/conversations/${sel}/labels/${l.id}`)),
       ]);
 
