@@ -33,7 +33,7 @@ const main = [
 
 const config = [
   { title: "Usuários", url: "/app/configuracoes/usuarios", icon: Users },
-  { title: "Base de conhecimento", url: "/app/configuracoes/conhecimento", icon: BookOpen },
+  { title: "Minha oficina", url: "/app/configuracoes/conhecimento", icon: BookOpen },
   { title: "Clientes", url: "/app/configuracoes/clientes", icon: UserCircle },
   { title: "Etiquetas", url: "/app/configuracoes/etiquetas", icon: Tag },
 ];

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/app/configuracoes/conhecimento")({
-  head: () => ({ meta: [{ title: "Base de conhecimento — MecaFlow" }] }),
+  head: () => ({ meta: [{ title: "Minha oficina — MecaFlow" }] }),
   component: Conhecimento,
 });
 
@@ -14,7 +14,7 @@ function Conhecimento() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-bold">Base de conhecimento</h1>
+        <h1 className="font-display text-2xl font-bold">Minha oficina</h1>
         <p className="text-sm text-muted-foreground">Informações da oficina usadas pelo bot e pela equipe.</p>
       </div>
 
