@@ -17,7 +17,7 @@ type Conv = {
   last_message: string | null;
   status: string;
   unread_count: number;
-  labels: { id: string; name: string }[];
+  labels: { id: string; name: string; color: string | null }[];
 };
 
 type Agendamento = { id: string; data: string; hora: string; titulo: string; cliente: string };
@@ -30,12 +30,6 @@ function fmtHoje() {
   return `${y}-${m}-${day}`;
 }
 
-const LABEL_COLORS: Record<string, string> = {
-  Agendamento: "bg-primary/15 text-primary",
-  Orçamento: "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400",
-  Suporte: "bg-accent text-accent-foreground",
-  VIP: "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400",
-};
 
 function statusBadge(status: string) {
   if (status === "RESOLVED") return { label: "Resolvida", cor: "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400" };
@@ -113,16 +107,23 @@ function Dashboard() {
               </p>
             ) : (
               conversas.map((c) => {
-                const badge = c.labels[0]
-                  ? { label: c.labels[0].name, cor: LABEL_COLORS[c.labels[0].name] ?? "bg-muted" }
-                  : statusBadge(c.status);
+                const status = statusBadge(c.status);
                 return (
                   <div key={c.id} className="flex items-center justify-between rounded-lg border p-3">
                     <div className="min-w-0 flex-1 pr-3">
                       <p className="font-medium">{c.lead_name}</p>
                       <p className="truncate text-sm text-muted-foreground">{c.last_message ?? "—"}</p>
                     </div>
-                    <Badge className={badge.cor + " border-0 shrink-0"}>{badge.label}</Badge>
+                    {c.labels[0] ? (
+                      <Badge
+                        className="border-0 shrink-0"
+                        style={{ backgroundColor: c.labels[0].color ?? "#64748b", color: "#fff" }}
+                      >
+                        {c.labels[0].name}
+                      </Badge>
+                    ) : (
+                      <Badge className={status.cor + " border-0 shrink-0"}>{status.label}</Badge>
+                    )}
                   </div>
                 );
               })

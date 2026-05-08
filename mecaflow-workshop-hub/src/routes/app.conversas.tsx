@@ -52,13 +52,9 @@ type Msg = {
   created_at: string;
 };
 
-const LABEL_COLORS: Record<string, string> = {
-  Agendamento: "bg-primary/15 text-primary",
-  Orçamento: "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400",
-  Suporte: "bg-accent text-accent-foreground",
-  VIP: "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400",
-};
-const corLabel = (name: string) => LABEL_COLORS[name] ?? "bg-muted text-muted-foreground";
+function badgeStyle(color: string | null) {
+  return { backgroundColor: color ?? "#64748b", color: "#fff" };
+}
 
 type Etiqueta = { id: string; nome: string; cor: string | null };
 
@@ -356,7 +352,7 @@ function Conversas() {
                     <p className="mt-0.5 truncate text-sm text-muted-foreground">{c.last_message ?? "—"}</p>
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {c.labels.map((l) => (
-                        <Badge key={l.id} className={`${corLabel(l.name)} border-0 text-xs`}>{l.name}</Badge>
+                        <Badge key={l.id} className="border-0 text-xs" style={badgeStyle(l.color)}>{l.name}</Badge>
                       ))}
                     </div>
                   </div>
@@ -399,7 +395,7 @@ function Conversas() {
                 <div className="flex items-center gap-2">
                   <div className="flex flex-wrap gap-1.5">
                     {ativa.labels.map((l) => (
-                      <Badge key={l.id} className={`${corLabel(l.name)} border-0`}>{l.name}</Badge>
+                      <Badge key={l.id} className="border-0" style={badgeStyle(l.color)}>{l.name}</Badge>
                     ))}
                   </div>
                   <DropdownMenu>
