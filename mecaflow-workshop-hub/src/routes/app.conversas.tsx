@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, Send, MoreVertical, CheckCircle2, Tag, Loader2, RotateCcw, Pencil } from "lucide-react";
+import { Search, Send, MoreVertical, CheckCircle2, Tag, Loader2, RotateCcw, Pencil, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -246,6 +246,19 @@ function Conversas() {
     }
   };
 
+  const ativarBot = async () => {
+    if (!sel) return;
+    try {
+      const updated = await api.patch<Conv>(`/conversations/${sel}/bot`);
+      setConversas((prev) =>
+        prev.map((c) => (c.id === sel ? (updated ?? { ...c, status: "BOT" as ConvStatus }) : c))
+      );
+      toast.success("Bot ativado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao ativar bot");
+    }
+  };
+
   const abrirEditarNome = () => {
     if (ativa) {
       setNomeEdit(ativa.lead_name);
@@ -451,6 +464,15 @@ function Conversas() {
                           <RotateCcw className="h-4 w-4 text-blue-500" />
                           Reabrir conversa
                         </DropdownMenuItem>
+                      )}
+                      {ativa.status === "HUMAN" && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={ativarBot} className="gap-2">
+                            <Bot className="h-4 w-4 text-purple-500" />
+                            Ativar bot
+                          </DropdownMenuItem>
+                        </>
                       )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={abrirGerenciarEtiquetas} className="gap-2">
