@@ -80,6 +80,7 @@ function Conversas() {
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [tab, setTab] = useState<"todas" | "abertas" | "resolvidas">("todas");
   const [busca, setBusca] = useState("");
+  const [filtroEtiquetas, setFiltroEtiquetas] = useState<Set<string>>(new Set());
   const [sel, setSel] = useState<string | null>(null);
 
   const [mensagens, setMensagens] = useState<Msg[]>([]);
@@ -195,10 +196,11 @@ function Conversas() {
 
   const filtradas = useMemo(() => {
     return conversas.filter((c) => {
-      if (!busca) return true;
-      return c.lead_name.toLowerCase().includes(busca.toLowerCase());
+      const passaBusca = !busca || c.lead_name.toLowerCase().includes(busca.toLowerCase());
+      const passaEtiqueta = filtroEtiquetas.size === 0 || c.labels.some((l) => filtroEtiquetas.has(l.name));
+      return passaBusca && passaEtiqueta;
     });
-  }, [conversas, busca]);
+  }, [conversas, busca, filtroEtiquetas]);
 
   const enviar = async () => {
     if (!sel || !texto.trim() || enviando) return;
@@ -320,6 +322,37 @@ function Conversas() {
                 <TabsTrigger value="resolvidas">Resolvidas</TabsTrigger>
               </TabsList>
             </Tabs>
+            {labelsDisponiveis.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {labelsDisponiveis.map((l) => {
+                  const ativo = filtroEtiquetas.has(l.nome);
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() =>
+                        setFiltroEtiquetas((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(l.nome)) next.delete(l.nome);
+                          else next.add(l.nome);
+                          return next;
+                        })
+                      }
+                      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
+                        ativo ? "border-transparent text-white" : "border-border text-muted-foreground hover:bg-muted"
+                      }`}
+                      style={ativo ? { backgroundColor: l.cor ?? "#64748b" } : {}}
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: ativo ? "#ffffff80" : (l.cor ?? "#64748b") }}
+                      />
+                      {l.nome}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto">
