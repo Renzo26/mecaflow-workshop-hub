@@ -1,15 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Bot, Sparkles } from "lucide-react";
+import { Send, Bot, Sparkles, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/app/assistente")({
   head: () => ({ meta: [{ title: "Meu Assistente — MecaFlow" }] }),
   component: Assistente,
 });
 
-type Papel = "bot" | "user";
+type Papel = "assistant" | "user";
 type Msg = { id: string; papel: Papel; texto: string; hora: string };
 
 const agora = () =>
@@ -17,52 +18,59 @@ const agora = () =>
 
 const BOAS_VINDAS: Msg = {
   id: "0",
-  papel: "bot",
-  texto: "Olá! Sou o assistente da MecaFlow 👋 Em breve estarei conectado à inteligência artificial para ajudar com sua oficina. Como posso ajudar?",
+  papel: "assistant",
+  texto: "Olá! Sou o assistente da MecaFlow 👋 Tenho acesso aos dados da sua oficina em tempo real. Pode me perguntar sobre clientes, agendamentos, serviços mais realizados, conversas abertas e muito mais!",
   hora: agora(),
 };
-
-function responder(texto: string): string {
-  const t = texto.toLowerCase();
-
-  if (/(obrigad|valeu|ótimo|perfeito|show)/.test(t))
-    return "Disponha! 😊 Pode perguntar sempre que precisar.";
-
-  if (/(oi|olá|ola|bom dia|boa tarde|boa noite|tudo bem|e aí)/.test(t))
-    return "Olá! Tudo certo por aqui. 😊 O que posso fazer por você hoje?";
-
-  return "Em breve estarei conectado à IA para responder perguntas sobre sua oficina. Por enquanto, use o menu lateral para acessar conversas, agenda e clientes.";
-}
 
 function Assistente() {
   const [msgs, setMsgs] = useState<Msg[]>([BOAS_VINDAS]);
   const [input, setInput] = useState("");
-  const [digitando, setDigitando] = useState(false);
+  const [carregando, setCarregando] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, digitando]);
+  }, [msgs, carregando]);
 
-  const enviar = () => {
+  const enviar = async () => {
     const texto = input.trim();
-    if (!texto) return;
+    if (!texto || carregando) return;
 
     const msgUser: Msg = { id: String(Date.now()), papel: "user", texto, hora: agora() };
     setMsgs((prev) => [...prev, msgUser]);
     setInput("");
-    setDigitando(true);
+    setCarregando(true);
 
-    setTimeout(() => {
+    try {
+      // Monta histórico excluindo a mensagem de boas-vindas
+      const history = msgs
+        .filter((m) => m.id !== "0")
+        .map((m) => ({ role: m.papel, content: m.texto }));
+
+      const { response } = await api.post<{ response: string }>("/assistant/chat", {
+        message: texto,
+        history,
+      });
+
       const msgBot: Msg = {
         id: String(Date.now() + 1),
-        papel: "bot",
-        texto: responder(texto),
+        papel: "assistant",
+        texto: response,
         hora: agora(),
       };
       setMsgs((prev) => [...prev, msgBot]);
-      setDigitando(false);
-    }, 900);
+    } catch {
+      const msgErro: Msg = {
+        id: String(Date.now() + 1),
+        papel: "assistant",
+        texto: "Desculpe, ocorreu um erro ao processar sua pergunta. Verifique se a chave da API está configurada no servidor.",
+        hora: agora(),
+      };
+      setMsgs((prev) => [...prev, msgErro]);
+    } finally {
+      setCarregando(false);
+    }
   };
 
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -82,11 +90,30 @@ function Assistente() {
         <div>
           <p className="font-semibold leading-tight">Meu Assistente</p>
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" />
-            Online
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+            IA com dados em tempo real
           </p>
         </div>
         <Sparkles className="ml-auto h-4 w-4 text-muted-foreground/40" />
+      </div>
+
+      {/* Sugestões rápidas */}
+      <div className="flex gap-2 flex-wrap border border-y-0 bg-card px-4 pb-3 pt-2">
+        {[
+          "Quantos clientes tenho?",
+          "Agendamentos de hoje",
+          "Serviço mais realizado",
+          "Conversas abertas",
+        ].map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => { setInput(s); }}
+            className="rounded-full border px-3 py-1 text-xs text-muted-foreground hover:bg-muted transition-colors"
+          >
+            {s}
+          </button>
+        ))}
       </div>
 
       {/* Mensagens */}
@@ -95,7 +122,7 @@ function Assistente() {
           <BubbleMensagem key={m.id} msg={m} />
         ))}
 
-        {digitando && (
+        {carregando && (
           <div className="flex items-end gap-2">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
               <Bot className="h-3.5 w-3.5 text-primary" />
@@ -119,12 +146,17 @@ function Assistente() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKey}
-          placeholder="Pergunte sobre agendamentos, clientes, conversas..."
+          placeholder="Pergunte sobre agendamentos, clientes, serviços..."
           className="flex-1"
           autoFocus
+          disabled={carregando}
         />
-        <Button size="icon" onClick={enviar} disabled={!input.trim() || digitando}>
-          <Send className="h-4 w-4" />
+        <Button size="icon" onClick={enviar} disabled={!input.trim() || carregando}>
+          {carregando ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
         </Button>
       </div>
     </div>
@@ -132,7 +164,7 @@ function Assistente() {
 }
 
 function BubbleMensagem({ msg }: { msg: Msg }) {
-  const isBot = msg.papel === "bot";
+  const isBot = msg.papel === "assistant";
 
   return (
     <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
@@ -143,7 +175,7 @@ function BubbleMensagem({ msg }: { msg: Msg }) {
       )}
       <div className={`flex max-w-[75%] flex-col gap-1 ${isBot ? "items-start" : "items-end"}`}>
         <div
-          className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+          className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm whitespace-pre-wrap ${
             isBot
               ? "rounded-bl-sm bg-card text-card-foreground"
               : "rounded-br-sm bg-primary text-primary-foreground"

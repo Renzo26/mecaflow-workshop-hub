@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.api import auth, conversations, webhooks, sse, clients, appointments, workshop_labels, workshop_users, workshop_settings
+from app.api import auth, conversations, webhooks, sse, clients, appointments, workshop_labels, workshop_users, workshop_settings, assistant
 
 settings = get_settings()
 
@@ -42,6 +42,7 @@ app.include_router(appointments.router, prefix="/api")
 app.include_router(workshop_labels.router, prefix="/api")
 app.include_router(workshop_users.router, prefix="/api")
 app.include_router(workshop_settings.router, prefix="/api")
+app.include_router(assistant.router, prefix="/api")
 
 
 @app.get("/health")
