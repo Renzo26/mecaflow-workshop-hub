@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Bot, Sparkles, Loader2 } from "lucide-react";
+import { Send, Bot, Sparkles, Loader2, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -13,18 +13,35 @@ export const Route = createFileRoute("/app/assistente")({
 type Papel = "assistant" | "user";
 type Msg = { id: string; papel: Papel; texto: string; hora: string };
 
-const agora = () =>
-  new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const STORAGE_KEY = "mecaflow_assistant_history";
 
-const BOAS_VINDAS: Msg = {
-  id: "0",
+const BOA_VINDA: Msg = {
+  id: "boas-vindas",
   papel: "assistant",
   texto: "Olá! Sou o assistente da MecaFlow 👋 Tenho acesso aos dados da sua oficina em tempo real. Pode me perguntar sobre clientes, agendamentos, serviços mais realizados, conversas abertas e muito mais!",
-  hora: agora(),
+  hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
 };
 
+function agora() {
+  return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function carregarHistorico(): Msg[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as Msg[];
+  } catch { /* ignora */ }
+  return [BOA_VINDA];
+}
+
+function salvarHistorico(msgs: Msg[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs));
+  } catch { /* ignora */ }
+}
+
 function Assistente() {
-  const [msgs, setMsgs] = useState<Msg[]>([BOAS_VINDAS]);
+  const [msgs, setMsgs] = useState<Msg[]>(carregarHistorico);
   const [input, setInput] = useState("");
   const [carregando, setCarregando] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -33,19 +50,29 @@ function Assistente() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, carregando]);
 
+  useEffect(() => {
+    salvarHistorico(msgs);
+  }, [msgs]);
+
+  const limpar = () => {
+    const nova = [{ ...BOA_VINDA, hora: agora() }];
+    setMsgs(nova);
+  };
+
   const enviar = async () => {
     const texto = input.trim();
     if (!texto || carregando) return;
 
     const msgUser: Msg = { id: String(Date.now()), papel: "user", texto, hora: agora() };
-    setMsgs((prev) => [...prev, msgUser]);
+    const novasMsgs = [...msgs, msgUser];
+    setMsgs(novasMsgs);
     setInput("");
     setCarregando(true);
 
     try {
-      // Monta histórico excluindo a mensagem de boas-vindas
-      const history = msgs
-        .filter((m) => m.id !== "0")
+      const history = novasMsgs
+        .filter((m) => m.id !== "boas-vindas")
+        .slice(0, -1)
         .map((m) => ({ role: m.papel, content: m.texto }));
 
       const { response } = await api.post<{ response: string }>("/assistant/chat", {
@@ -53,21 +80,20 @@ function Assistente() {
         history,
       });
 
-      const msgBot: Msg = {
-        id: String(Date.now() + 1),
-        papel: "assistant",
-        texto: response,
-        hora: agora(),
-      };
-      setMsgs((prev) => [...prev, msgBot]);
+      setMsgs((prev) => [
+        ...prev,
+        { id: String(Date.now() + 1), papel: "assistant", texto: response, hora: agora() },
+      ]);
     } catch {
-      const msgErro: Msg = {
-        id: String(Date.now() + 1),
-        papel: "assistant",
-        texto: "Desculpe, ocorreu um erro ao processar sua pergunta. Verifique se a chave da API está configurada no servidor.",
-        hora: agora(),
-      };
-      setMsgs((prev) => [...prev, msgErro]);
+      setMsgs((prev) => [
+        ...prev,
+        {
+          id: String(Date.now() + 1),
+          papel: "assistant",
+          texto: "Não consegui processar sua pergunta agora. Tente novamente em instantes.",
+          hora: agora(),
+        },
+      ]);
     } finally {
       setCarregando(false);
     }
@@ -87,14 +113,23 @@ function Assistente() {
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
           <Bot className="h-5 w-5 text-primary" />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="font-semibold leading-tight">Meu Assistente</p>
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
             IA com dados em tempo real
           </p>
         </div>
-        <Sparkles className="ml-auto h-4 w-4 text-muted-foreground/40" />
+        <Sparkles className="h-4 w-4 text-muted-foreground/40" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          onClick={limpar}
+          title="Limpar conversa"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Sugestões rápidas */}
@@ -108,7 +143,7 @@ function Assistente() {
           <button
             key={s}
             type="button"
-            onClick={() => { setInput(s); }}
+            onClick={() => setInput(s)}
             className="rounded-full border px-3 py-1 text-xs text-muted-foreground hover:bg-muted transition-colors"
           >
             {s}

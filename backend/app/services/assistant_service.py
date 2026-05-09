@@ -1,7 +1,7 @@
 import os
 import uuid
 from collections import Counter
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 import anthropic
 from sqlalchemy import func, select
@@ -23,10 +23,11 @@ def _get_client() -> anthropic.Anthropic:
 
 
 async def _build_context(db: AsyncSession, workshop_id: uuid.UUID) -> str:
-    today = date.today()
-    today_str = today.strftime("%Y-%m-%d")
-    thirty_days_ago = today - timedelta(days=30)
-    week_end = today + timedelta(days=7)
+    now = datetime.now(timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    thirty_days_ago = now - timedelta(days=30)
+    week_end_str = (now + timedelta(days=7)).strftime("%Y-%m-%d")
 
     workshop = await db.scalar(select(Workshop).where(Workshop.id == workshop_id))
 
@@ -37,11 +38,14 @@ async def _build_context(db: AsyncSession, workshop_id: uuid.UUID) -> str:
     clients_last_30d = await db.scalar(
         select(func.count(Client.id))
         .where(Client.workshop_id == workshop_id)
-        .where(Client.created_at >= thirty_days_ago.isoformat())
+        .where(Client.created_at >= thirty_days_ago)
     ) or 0
 
     all_clients = list((await db.scalars(
-        select(Client).where(Client.workshop_id == workshop_id).order_by(Client.created_at.desc())
+        select(Client)
+        .where(Client.workshop_id == workshop_id)
+        .order_by(Client.created_at.desc())
+        .limit(100)
     )).all())
 
     appts_today = list((await db.scalars(
@@ -55,21 +59,24 @@ async def _build_context(db: AsyncSession, workshop_id: uuid.UUID) -> str:
         select(Appointment)
         .where(Appointment.workshop_id == workshop_id)
         .where(Appointment.data > today_str)
-        .where(Appointment.data <= week_end.strftime("%Y-%m-%d"))
+        .where(Appointment.data <= week_end_str)
         .order_by(Appointment.data, Appointment.hora)
     )).all())
 
     open_convs = await db.scalar(
         select(func.count(Conversation.id)).where(
-            Conversation.status.in_([ConversationStatus.UNASSIGNED, ConversationStatus.HUMAN, ConversationStatus.BOT])
+            Conversation.status.in_([
+                ConversationStatus.UNASSIGNED,
+                ConversationStatus.HUMAN,
+                ConversationStatus.BOT,
+            ])
         )
     ) or 0
 
     resolved_today = await db.scalar(
-        select(func.count(Conversation.id)).where(
-            Conversation.status == ConversationStatus.RESOLVED,
-            Conversation.updated_at >= today.isoformat(),
-        )
+        select(func.count(Conversation.id))
+        .where(Conversation.status == ConversationStatus.RESOLVED)
+        .where(Conversation.updated_at >= today_start)
     ) or 0
 
     # Analisa serviços mais realizados a partir do campo resumo
@@ -110,7 +117,7 @@ async def _build_context(db: AsyncSession, workshop_id: uuid.UUID) -> str:
             lines.append(f"  - {svc}: {count}x")
 
     if all_clients:
-        lines.append(f"\nÚltimos 5 clientes cadastrados:")
+        lines.append("\nÚltimos 5 clientes cadastrados:")
         for c in all_clients[:5]:
             info = f"  - {c.nome}"
             if c.veiculo:
