@@ -11,6 +11,8 @@ class ClientIn(BaseModel):
     veiculo: Optional[str] = None
     placa: Optional[str] = None
     ultimo_atendimento: Optional[str] = None
+    ano_veiculo: Optional[str] = None
+    servico_realizado: Optional[str] = None
     resumo: Optional[str] = None
 
 

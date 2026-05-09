@@ -82,13 +82,15 @@ async def _build_context(db: AsyncSession, workshop_id: uuid.UUID) -> str:
         .where(Conversation.updated_at >= today_start)
     ) or 0
 
-    # Analisa serviços mais realizados a partir do campo resumo
-    resumos = [c.resumo for c in all_clients if c.resumo]
+    # Analisa serviços mais realizados — prioriza servico_realizado, usa resumo como fallback
     service_counter: Counter = Counter()
-    for r in resumos:
-        for word in r.lower().replace(",", " ").replace(";", " ").split():
-            if len(word) > 4:
-                service_counter[word] += 1
+    for c in all_clients:
+        fonte = c.servico_realizado or c.resumo or ""
+        if fonte:
+            for part in fonte.lower().replace(",", "|").replace(";", "|").replace("/", "|").split("|"):
+                part = part.strip()
+                if len(part) > 2:
+                    service_counter[part] += 1
     top_services = service_counter.most_common(10)
 
     lines = [
@@ -124,13 +126,18 @@ async def _build_context(db: AsyncSession, workshop_id: uuid.UUID) -> str:
         for c in all_clients[:5]:
             info = f"  - {c.nome}"
             if c.veiculo:
-                info += f" | {c.veiculo}"
+                veiculo_str = c.veiculo
+                if c.ano_veiculo:
+                    veiculo_str += f" {c.ano_veiculo}"
+                info += f" | {veiculo_str}"
             if c.placa:
                 info += f" | Placa: {c.placa}"
             if c.ultimo_atendimento:
                 info += f" | Último atendimento: {c.ultimo_atendimento}"
-            if c.resumo:
-                info += f" | Serviço: {c.resumo[:80]}"
+            if c.servico_realizado:
+                info += f" | Serviço: {c.servico_realizado[:80]}"
+            elif c.resumo:
+                info += f" | Obs: {c.resumo[:60]}"
             lines.append(info)
 
     lines += [

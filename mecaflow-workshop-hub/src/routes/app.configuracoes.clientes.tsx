@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Search, Car, Phone, Calendar, FileText, User, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Car, Phone, Calendar, FileText, User, Loader2, Wrench, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,8 +22,10 @@ type Cliente = {
   nome: string;
   telefone: string | null;
   veiculo: string | null;
+  ano_veiculo: string | null;
   placa: string | null;
   ultimo_atendimento: string | null;
+  servico_realizado: string | null;
   resumo: string | null;
 };
 
@@ -55,9 +57,11 @@ function Clientes() {
       nome: String(f.get("nome")),
       telefone: String(f.get("telefone") || ""),
       veiculo: String(f.get("veiculo") || ""),
+      ano_veiculo: String(f.get("ano_veiculo") || ""),
       placa: String(f.get("placa") || ""),
-      resumo: String(f.get("resumo") || ""),
       ultimo_atendimento: String(f.get("ultimo_atendimento") || "") || null,
+      servico_realizado: String(f.get("servico_realizado") || ""),
+      resumo: String(f.get("resumo") || ""),
     };
     setSaving(true);
     try {
@@ -107,7 +111,7 @@ function Clientes() {
               <TableRow>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Telefone</TableHead>
-                <TableHead>Veículo</TableHead>
+                <TableHead>Veículo / Ano</TableHead>
                 <TableHead>Placa</TableHead>
                 <TableHead>Último atendimento</TableHead>
                 <TableHead />
@@ -126,11 +130,16 @@ function Clientes() {
                   <TableCell>
                     <button type="button" onClick={() => setPerfil(c)} className="group text-left">
                       <p className="cursor-pointer font-medium text-primary underline-offset-2 group-hover:underline">{c.nome}</p>
-                      <p className="line-clamp-1 text-xs text-muted-foreground">{c.resumo ?? "—"}</p>
+                      <p className="line-clamp-1 text-xs text-muted-foreground">
+                        {c.servico_realizado ?? c.resumo ?? "—"}
+                      </p>
                     </button>
                   </TableCell>
                   <TableCell>{c.telefone ?? "—"}</TableCell>
-                  <TableCell>{c.veiculo ?? "—"}</TableCell>
+                  <TableCell>
+                    {c.veiculo ?? "—"}
+                    {c.ano_veiculo ? <span className="ml-1 text-xs text-muted-foreground">({c.ano_veiculo})</span> : null}
+                  </TableCell>
                   <TableCell>{c.placa ?? "—"}</TableCell>
                   <TableCell>{c.ultimo_atendimento ?? "—"}</TableCell>
                   <TableCell className="text-right">
@@ -154,9 +163,16 @@ function Clientes() {
               <div className="space-y-2"><Label>Telefone</Label><Input name="telefone" defaultValue={edit?.telefone ?? ""} /></div>
               <div className="space-y-2"><Label>Placa</Label><Input name="placa" defaultValue={edit?.placa ?? ""} /></div>
             </div>
-            <div className="space-y-2"><Label>Veículo</Label><Input name="veiculo" defaultValue={edit?.veiculo ?? ""} /></div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2 space-y-2"><Label>Veículo</Label><Input name="veiculo" placeholder="Ex: Onix, Fiesta..." defaultValue={edit?.veiculo ?? ""} /></div>
+              <div className="space-y-2"><Label>Ano</Label><Input name="ano_veiculo" placeholder="2024" maxLength={4} defaultValue={edit?.ano_veiculo ?? ""} /></div>
+            </div>
             <div className="space-y-2"><Label>Último atendimento</Label><Input name="ultimo_atendimento" type="date" defaultValue={edit?.ultimo_atendimento ?? ""} /></div>
-            <div className="space-y-2"><Label>Resumo</Label><Textarea name="resumo" defaultValue={edit?.resumo ?? ""} /></div>
+            <div className="space-y-2">
+              <Label>Serviço realizado</Label>
+              <Input name="servico_realizado" placeholder="Ex: Troca de óleo, alinhamento..." defaultValue={edit?.servico_realizado ?? ""} />
+            </div>
+            <div className="space-y-2"><Label>Observações</Label><Textarea name="resumo" placeholder="Informações adicionais sobre o cliente ou atendimento..." defaultValue={edit?.resumo ?? ""} /></div>
             <DialogFooter>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
@@ -184,9 +200,17 @@ function Clientes() {
               <div className="grid gap-3">
                 {[
                   { Icon: Phone, label: "Telefone", value: perfil.telefone },
-                  { Icon: Car, label: "Veículo", value: perfil.veiculo },
+                  {
+                    Icon: Car,
+                    label: "Veículo",
+                    value: perfil.veiculo
+                      ? `${perfil.veiculo}${perfil.ano_veiculo ? ` (${perfil.ano_veiculo})` : ""}`
+                      : null,
+                  },
+                  { Icon: Hash, label: "Placa", value: perfil.placa },
                   { Icon: Calendar, label: "Último atendimento", value: perfil.ultimo_atendimento },
-                  { Icon: FileText, label: "Resumo", value: perfil.resumo },
+                  { Icon: Wrench, label: "Serviço realizado", value: perfil.servico_realizado },
+                  { Icon: FileText, label: "Observações", value: perfil.resumo },
                 ].map(({ Icon, label, value }) => (
                   <div key={label} className="flex items-start gap-3 rounded-lg bg-muted/50 px-3 py-2.5">
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

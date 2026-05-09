@@ -23,6 +23,8 @@ class Client(Base):
     veiculo: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     placa: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     ultimo_atendimento: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    ano_veiculo: Mapped[Optional[str]] = mapped_column(String(4), nullable=True)
+    servico_realizado: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     resumo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
