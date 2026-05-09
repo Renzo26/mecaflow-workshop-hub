@@ -161,14 +161,17 @@ class ConversationService:
         total = await db.scalar(
             select(func.count(Message.id)).where(Message.conversation_id == conv_id)
         )
+        total = total or 0
+        # página 0 = últimas `size` mensagens; página 1 = anteriores; etc.
+        offset = max(0, total - size * (page + 1))
         msgs = await db.scalars(
             select(Message)
             .where(Message.conversation_id == conv_id)
             .order_by(Message.created_at.asc())
-            .offset(page * size)
+            .offset(offset)
             .limit(size)
         )
-        return list(msgs.all()), total or 0
+        return list(msgs.all()), total
 
     async def send_message(
         self,
