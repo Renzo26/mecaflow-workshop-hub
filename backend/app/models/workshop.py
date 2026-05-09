@@ -19,6 +19,13 @@ class Workshop(Base):
     cnpj: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, unique=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    address: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    state: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
+    cep: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    business_hours: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    services: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
+    bot_info: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
