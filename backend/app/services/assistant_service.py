@@ -136,8 +136,8 @@ async def _build_context(db: AsyncSession, workshop_id: uuid.UUID) -> str:
                 info += f" | Último atendimento: {c.ultimo_atendimento}"
             if c.servico_realizado:
                 info += f" | Serviço: {c.servico_realizado[:80]}"
-            elif c.resumo:
-                info += f" | Obs: {c.resumo[:60]}"
+            if c.resumo:
+                info += f" | Obs: {c.resumo[:100]}"
             lines.append(info)
 
     lines += [
