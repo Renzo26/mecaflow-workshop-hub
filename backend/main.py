@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # garante que .env é carregado no os.environ antes de qualquer import
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
