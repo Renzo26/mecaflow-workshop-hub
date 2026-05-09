@@ -1,4 +1,3 @@
-import os
 import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -7,6 +6,7 @@ import anthropic
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.models.appointment import Appointment
 from app.models.client import Client
 from app.models.conversation import Conversation, ConversationStatus
@@ -18,7 +18,10 @@ _client = None
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        api_key = get_settings().anthropic_api_key
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY não configurada")
+        _client = anthropic.Anthropic(api_key=api_key)
     return _client
 
 

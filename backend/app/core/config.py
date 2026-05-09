@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     jwt_access_ttl_ms: int = 28800000
     jwt_refresh_ttl_ms: int = 604800000
 
+    # IA
+    anthropic_api_key: str = ""
+
     # App
     app_env: str = "development"
     app_port: int = 8080
