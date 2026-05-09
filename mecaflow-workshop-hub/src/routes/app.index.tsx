@@ -65,7 +65,7 @@ function Dashboard() {
   const stats = [
     { label: "Conversas abertas", value: abertas, icon: MessagesSquare, tone: "text-primary" },
     { label: "Agendados hoje", value: agendamentos.length, icon: CalendarDays, tone: "text-primary" },
-    { label: "Resolvidas hoje", value: resolvidas, icon: CheckCircle2, tone: "text-success" },
+    { label: "Concluídas hoje", value: resolvidas, icon: CheckCircle2, tone: "text-success" },
     { label: "Aguardando resposta", value: aguardando, icon: Clock, tone: "text-warning" },
   ];
 

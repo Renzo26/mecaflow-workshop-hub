@@ -332,7 +332,7 @@ function Conversas() {
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="todas">Todas</TabsTrigger>
                 <TabsTrigger value="abertas">Abertas</TabsTrigger>
-                <TabsTrigger value="resolvidas">Resolvidas</TabsTrigger>
+                <TabsTrigger value="resolvidas">Concluídas</TabsTrigger>
               </TabsList>
             </Tabs>
             {labelsDisponiveis.length > 0 && (
