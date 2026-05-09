@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -18,6 +19,16 @@ export const Route = createFileRoute("/app")({
 function AppLayout() {
   const navigate = useNavigate();
   const session = getSession();
+  const [workshopName, setWorkshopName] = useState(session?.workshop.name ?? "MecaFlow");
+
+  useEffect(() => {
+    const handler = () => {
+      const s = getSession();
+      if (s) setWorkshopName(s.workshop.name);
+    };
+    window.addEventListener("workshop-name-updated", handler);
+    return () => window.removeEventListener("workshop-name-updated", handler);
+  }, []);
 
   const handleLogout = () => {
     clearAuth();
@@ -34,7 +45,7 @@ function AppLayout() {
             <div className="flex items-center gap-2">
               <SidebarTrigger />
               <span className="text-sm text-muted-foreground">
-                {session?.workshop.name ?? "MecaFlow"}
+                {workshopName}
               </span>
             </div>
             <div className="flex items-center gap-2">

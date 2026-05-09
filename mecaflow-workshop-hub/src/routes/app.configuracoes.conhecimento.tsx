@@ -56,6 +56,14 @@ function Conhecimento() {
     try {
       const updated = await api.put<Settings>("/workshop", data);
       setData({ ...empty, ...updated });
+      // Sincroniza o nome no localStorage para o header refletir imediatamente
+      const raw = localStorage.getItem("auth_workshop");
+      if (raw) {
+        const w = JSON.parse(raw) as { id: string; name: string };
+        w.name = updated.name;
+        localStorage.setItem("auth_workshop", JSON.stringify(w));
+        window.dispatchEvent(new Event("workshop-name-updated"));
+      }
       toast.success("Configurações salvas com sucesso");
     } catch {
       toast.error("Erro ao salvar configurações");
