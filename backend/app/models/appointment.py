@@ -21,6 +21,8 @@ class Appointment(Base):
     hora: Mapped[str] = mapped_column(String(5), nullable=False)
     titulo: Mapped[str] = mapped_column(String(200), nullable=False)
     cliente: Mapped[str] = mapped_column(String(200), nullable=False)
+    veiculo: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    telefone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

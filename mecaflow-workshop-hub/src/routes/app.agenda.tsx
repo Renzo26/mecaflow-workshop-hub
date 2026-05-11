@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Car, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -14,7 +14,15 @@ export const Route = createFileRoute("/app/agenda")({
   component: Agenda,
 });
 
-type Evento = { id: string; data: string; hora: string; titulo: string; cliente: string };
+type Evento = {
+  id: string;
+  data: string;
+  hora: string;
+  titulo: string;
+  cliente: string;
+  veiculo: string | null;
+  telefone: string | null;
+};
 
 const HOJE = new Date();
 const fmt = (d: Date) => {
@@ -32,6 +40,8 @@ function Agenda() {
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const [diaSel, setDiaSel] = useState<string>(fmt(HOJE));
+  const [confirmDelete, setConfirmDelete] = useState<Evento | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     api.get<Evento[]>("/appointments")
@@ -63,6 +73,8 @@ function Agenda() {
         hora: String(f.get("hora")),
         titulo: String(f.get("titulo")),
         cliente: String(f.get("cliente")),
+        veiculo: String(f.get("veiculo") || "") || null,
+        telefone: String(f.get("telefone") || "") || null,
       });
       setEventos((arr) => [...arr, novo]);
       setOpen(false);
@@ -71,9 +83,20 @@ function Agenda() {
     }
   };
 
-  const deletar = async (id: string) => {
-    await api.delete(`/appointments/${id}`).catch(() => {});
-    setEventos((arr) => arr.filter((e) => e.id !== id));
+  const confirmarDeletar = (ev: Evento) => {
+    setConfirmDelete(ev);
+  };
+
+  const executarDeletar = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/appointments/${confirmDelete.id}`);
+      setEventos((arr) => arr.filter((e) => e.id !== confirmDelete.id));
+      setConfirmDelete(null);
+    } catch { /* ignora */ } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -152,8 +175,25 @@ function Agenda() {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{e.titulo}</p>
                     <p className="text-sm text-muted-foreground">{e.cliente}</p>
+                    {e.veiculo && (
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                        <Car className="h-3 w-3 shrink-0" />
+                        {e.veiculo}
+                      </p>
+                    )}
+                    {e.telefone && (
+                      <a
+                        href={`https://wa.me/55${e.telefone.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-xs text-green-600 hover:underline mt-0.5"
+                      >
+                        <Phone className="h-3 w-3 shrink-0" />
+                        {e.telefone}
+                      </a>
+                    )}
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 self-start" onClick={() => deletar(e.id)}>
+                  <Button variant="ghost" size="icon" className="shrink-0 self-start" onClick={() => confirmarDeletar(e)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -163,12 +203,17 @@ function Agenda() {
         </div>
       )}
 
+      {/* Dialog: Novo agendamento */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Novo agendamento</DialogTitle></DialogHeader>
           <form onSubmit={criar} className="space-y-3">
             <div className="space-y-2"><Label>Cliente</Label><Input name="cliente" required /></div>
             <div className="space-y-2"><Label>Serviço</Label><Input name="titulo" required /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Veículo</Label><Input name="veiculo" placeholder="Ex: Onix, Fiesta..." /></div>
+              <div className="space-y-2"><Label>Telefone</Label><Input name="telefone" placeholder="11999999999" /></div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2"><Label>Data</Label><Input name="data" type="date" required defaultValue={diaSel} /></div>
               <div className="space-y-2"><Label>Hora</Label><Input name="hora" type="time" required /></div>
@@ -179,6 +224,44 @@ function Agenda() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Confirmar exclusão */}
+      <Dialog open={!!confirmDelete} onOpenChange={(v) => { if (!v) setConfirmDelete(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Cancelar agendamento?</DialogTitle>
+          </DialogHeader>
+          {confirmDelete && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Você está prestes a cancelar o agendamento de{" "}
+                <span className="font-medium text-foreground">{confirmDelete.cliente}</span> às{" "}
+                <span className="font-medium text-foreground">{confirmDelete.hora}</span>.
+              </p>
+              {confirmDelete.telefone && (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm dark:border-green-900 dark:bg-green-950/30">
+                  <p className="font-medium text-green-800 dark:text-green-300">Mensagem automática no WhatsApp</p>
+                  <p className="mt-0.5 text-green-700 dark:text-green-400">
+                    Uma mensagem de cancelamento será enviada para{" "}
+                    <span className="font-medium">{confirmDelete.telefone}</span> informando o cliente.
+                  </p>
+                </div>
+              )}
+              {!confirmDelete.telefone && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Nenhum telefone cadastrado — o cliente não será notificado automaticamente.
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Voltar</Button>
+            <Button variant="destructive" onClick={executarDeletar} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar cancelamento"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
