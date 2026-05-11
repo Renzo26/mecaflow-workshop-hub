@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Car, Phone } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Car, Phone, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -43,6 +43,8 @@ function Agenda() {
   const [openConfirm, setOpenConfirm] = useState(false);
   const [toDelete, setToDelete] = useState<Evento | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [toEdit, setToEdit] = useState<Evento | null>(null);
 
   useEffect(() => {
     api.get<Evento[]>("/appointments")
@@ -82,6 +84,31 @@ function Agenda() {
     } catch { /* ignora */ } finally {
       setSaving(false);
     }
+  };
+
+  const abrirEdit = (ev: Evento) => {
+    setToEdit(ev);
+    setOpenEdit(true);
+  };
+
+  const salvarEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!toEdit) return;
+    const f = new FormData(e.currentTarget);
+    const body = {
+      data: toEdit.data,
+      hora: toEdit.hora,
+      titulo: toEdit.titulo,
+      cliente: toEdit.cliente,
+      veiculo: String(f.get("veiculo") || "") || null,
+      telefone: String(f.get("telefone") || "") || null,
+    };
+    try {
+      const updated = await api.put<Evento>(`/appointments/${toEdit.id}`, body);
+      setEventos((arr) => arr.map((e) => (e.id === toEdit.id ? updated : e)));
+      setOpenEdit(false);
+      setToEdit(null);
+    } catch { /* ignora */ }
   };
 
   const confirmarDeletar = (ev: Evento) => {
@@ -196,9 +223,14 @@ function Agenda() {
                       </a>
                     )}
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 self-start" onClick={() => confirmarDeletar(e)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex shrink-0 self-start flex-col gap-0.5">
+                    <Button variant="ghost" size="icon" onClick={() => abrirEdit(e)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => confirmarDeletar(e)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -225,6 +257,27 @@ function Agenda() {
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar"}
               </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Editar agendamento */}
+      <Dialog open={openEdit} onOpenChange={(v) => { setOpenEdit(v); if (!v) setToEdit(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Editar agendamento</DialogTitle></DialogHeader>
+          <form onSubmit={salvarEdit} className="space-y-3">
+            <div className="space-y-2">
+              <Label>Veículo</Label>
+              <Input name="veiculo" placeholder="Ex: Onix 2014, Fiesta..." defaultValue={toEdit?.veiculo ?? ""} />
+            </div>
+            <div className="space-y-2">
+              <Label>Telefone (WhatsApp)</Label>
+              <Input name="telefone" placeholder="5511999999999" defaultValue={toEdit?.telefone ?? ""} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpenEdit(false)}>Cancelar</Button>
+              <Button type="submit">Salvar</Button>
             </DialogFooter>
           </form>
         </DialogContent>
