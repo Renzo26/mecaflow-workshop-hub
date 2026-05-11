@@ -122,6 +122,19 @@ function Agenda() {
     try {
       await api.delete(`/appointments/${toDelete.id}`);
       setEventos((arr) => arr.filter((e) => e.id !== toDelete.id));
+      if (toDelete.telefone) {
+        fetch("https://n8n.cloudysolutions.fun/webhook-test/cancelamento", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            telefone: toDelete.telefone,
+            cliente: toDelete.cliente,
+            hora: toDelete.hora,
+            data: toDelete.data,
+            titulo: toDelete.titulo,
+          }),
+        }).catch(() => {});
+      }
       setOpenConfirm(false);
       setToDelete(null);
     } catch { /* ignora */ } finally {
