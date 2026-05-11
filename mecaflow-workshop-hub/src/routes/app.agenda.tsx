@@ -213,13 +213,17 @@ function Agenda() {
                     )}
                     {e.telefone && (
                       <a
-                        href={`https://wa.me/55${e.telefone.replace(/\D/g, "")}`}
+                        href={(() => {
+                          const digits = e.telefone!.replace(/\D/g, "");
+                          const num = digits.startsWith("55") ? digits : `55${digits}`;
+                          return `https://wa.me/${num}`;
+                        })()}
                         target="_blank"
                         rel="noreferrer"
                         className="flex items-center gap-1 text-xs text-green-600 hover:underline mt-0.5"
                       >
                         <Phone className="h-3 w-3 shrink-0" />
-                        {e.telefone}
+                        {e.telefone.replace(/@.*$/, "")}
                       </a>
                     )}
                   </div>
