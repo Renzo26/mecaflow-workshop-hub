@@ -38,8 +38,11 @@ class ConversationService:
         p = body.payload
         is_from_me = bool(p.fromMe)
 
-        # Determina o chat_id: para mensagens do bot (fromMe), o destinatário está em "to"
-        if is_from_me:
+        # chatId é o identificador canônico do WAHA (funciona para mensagens enviadas e recebidas).
+        # Para mensagens enviadas via API externa (ex: n8n), "to" pode estar ausente — chatId resolve isso.
+        if p.chat_id:
+            raw_chat_id = p.chat_id
+        elif is_from_me:
             raw_chat_id = p.to or p.from_field or ""
         else:
             raw_chat_id = p.from_field or ""
@@ -70,9 +73,8 @@ class ConversationService:
             or (p.inner_data.notifyName if p.inner_data else None)
             or ""
         )
-        logger.info("WAHA webhook | chat=%s fromMe=%s notifyName=%r _data=%r extra=%r",
-                    waha_chat_id, is_from_me, p.notifyName,
-                    p.inner_data, getattr(p, "model_extra", {}))
+        logger.info("WAHA webhook | chat=%s fromMe=%s chatId=%r to=%r from=%r notifyName=%r",
+                    waha_chat_id, is_from_me, p.chat_id, p.to, p.from_field, p.notifyName)
         lead_phone = waha_chat_id.split("@")[0]
         lead_name = notify_name or lead_phone
 

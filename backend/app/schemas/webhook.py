@@ -17,6 +17,7 @@ class WahaMessagePayload(BaseModel):
     id: str
     from_field: Optional[str] = Field(None, alias="from")
     to: Optional[str] = None
+    chat_id: Optional[str] = Field(None, alias="chatId")
     body: Optional[str] = None
     fromMe: bool = False
     hasMedia: bool = False
