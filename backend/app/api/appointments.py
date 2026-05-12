@@ -12,6 +12,7 @@ from app.models.conversation import Conversation
 from app.models.workshop import Workshop
 from app.schemas.appointment import AppointmentIn, AppointmentOut
 from app.services.conversation_service import conversation_service
+from app.services.waha_service import waha_service
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -97,9 +98,6 @@ async def delete_appointment(
         return
 
     waha_chat_id = f"{digits}@c.us"
-    conv = await db.scalar(select(Conversation).where(Conversation.waha_chat_id == waha_chat_id))
-    if not conv:
-        return
 
     workshop = await db.scalar(select(Workshop).where(Workshop.id == workshop_id))
     workshop_name = workshop.name if workshop else "Oficina"
@@ -110,5 +108,11 @@ async def delete_appointment(
         f"Caso queira remarcar, é só nos chamar aqui! 😊 — {workshop_name}"
     )
 
-    await conversation_service.send_message(db, conv, msg_text, "Bot")
-    await db.commit()
+    conv = await db.scalar(select(Conversation).where(Conversation.waha_chat_id == waha_chat_id))
+    if conv:
+        # Conversa encontrada: envia pelo send_message (salva no DB + manda pelo WAHA)
+        await conversation_service.send_message(db, conv, msg_text, "Bot")
+        await db.commit()
+    else:
+        # Conversa não encontrada: envia pelo WAHA diretamente para o cliente receber a msg
+        await waha_service.send_text(waha_chat_id, msg_text)
