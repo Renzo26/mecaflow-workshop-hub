@@ -1,3 +1,4 @@
+import re
 import uuid
 from typing import Optional
 
@@ -7,7 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session, get_workshop_id
 from app.models.appointment import Appointment
+from app.models.conversation import Conversation
+from app.models.workshop import Workshop
 from app.schemas.appointment import AppointmentIn, AppointmentOut
+from app.services.conversation_service import conversation_service
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -75,5 +79,36 @@ async def delete_appointment(
     workshop_id: uuid.UUID = Depends(get_workshop_id),
 ):
     appointment = await _get_or_404(appointment_id, workshop_id, db)
+
+    telefone = appointment.telefone
+    cliente = appointment.cliente
+    titulo = appointment.titulo
+    data = appointment.data
+    hora = appointment.hora
+
     await db.delete(appointment)
+    await db.commit()
+
+    if not telefone:
+        return
+
+    digits = re.sub(r"\D", "", telefone.split("@")[0])
+    if not digits:
+        return
+
+    waha_chat_id = f"{digits}@c.us"
+    conv = await db.scalar(select(Conversation).where(Conversation.waha_chat_id == waha_chat_id))
+    if not conv:
+        return
+
+    workshop = await db.scalar(select(Workshop).where(Workshop.id == workshop_id))
+    workshop_name = workshop.name if workshop else "Oficina"
+
+    msg_text = (
+        f"Olá, {cliente}! 👋 Passando para informar que seu agendamento de "
+        f"{titulo} - {cliente} marcado para o dia {data} às {hora} foi cancelado.  "
+        f"Caso queira remarcar, é só nos chamar aqui! 😊 — {workshop_name}"
+    )
+
+    await conversation_service.send_message(db, conv, msg_text, "Bot")
     await db.commit()
