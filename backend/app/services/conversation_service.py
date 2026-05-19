@@ -67,16 +67,23 @@ class ConversationService:
         if conv is None and is_from_me:
             return
 
-        # Tenta obter o nome em todas as localizações possíveis do payload WAHA
-        notify_name = (
-            p.notifyName
+        # Nome: PushName > notifyName > número
+        display_name = (
+            p.pushName
+            or p.notifyName
             or (p.inner_data.notifyName if p.inner_data else None)
             or ""
         )
-        logger.info("WAHA webhook | chat=%s fromMe=%s chatId=%r to=%r from=%r notifyName=%r",
-                    waha_chat_id, is_from_me, p.chat_id, p.to, p.from_field, p.notifyName)
-        lead_phone = waha_chat_id.split("@")[0]
-        lead_name = notify_name or lead_phone
+        # Telefone real: SenderAlt strip suffix ":<device>@<server>" → só dígitos
+        if p.senderAlt:
+            lead_phone = p.senderAlt.split(":")[0].split("@")[0]
+        else:
+            lead_phone = waha_chat_id.split("@")[0]
+
+        lead_name = display_name or lead_phone
+
+        logger.info("WAHA webhook | chat=%s fromMe=%s pushName=%r senderAlt=%r phone=%s",
+                    waha_chat_id, is_from_me, p.pushName, p.senderAlt, lead_phone)
 
         if conv is None:
             conv = Conversation(
@@ -88,9 +95,12 @@ class ConversationService:
             )
             db.add(conv)
             await db.flush()
-        elif notify_name and conv.lead_name == lead_phone:
-            # Atualiza o nome se antes estava salvo como número
-            conv.lead_name = lead_name
+        else:
+            # Atualiza nome e telefone se chegou info melhor
+            if display_name and conv.lead_name == conv.lead_phone:
+                conv.lead_name = lead_name
+            if p.senderAlt and conv.lead_phone != lead_phone:
+                conv.lead_phone = lead_phone
 
         sender_name = "Bot" if is_from_me else lead_name
 

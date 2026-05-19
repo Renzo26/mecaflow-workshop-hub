@@ -22,6 +22,8 @@ class WahaMessagePayload(BaseModel):
     fromMe: bool = False
     hasMedia: bool = False
     notifyName: Optional[str] = None
+    pushName: Optional[str] = Field(None, alias="PushName")
+    senderAlt: Optional[str] = Field(None, alias="SenderAlt")
     media: Optional[WahaMediaPayload] = None
     inner_data: Optional[WahaInnerData] = Field(None, alias="_data")
 
