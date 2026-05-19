@@ -108,7 +108,9 @@ class ConversationService:
                 if conv is None:
                     return
         else:
-            if display_name and conv.lead_name == conv.lead_phone:
+            # Atualiza nome se o atual parece número (LID ou telefone) e chegou nome real
+            name_is_number = conv.lead_name.replace("+", "").replace(" ", "").isdigit()
+            if display_name and name_is_number:
                 conv.lead_name = lead_name
             if raw_alt and conv.lead_phone != lead_phone:
                 conv.lead_phone = lead_phone
