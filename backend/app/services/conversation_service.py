@@ -75,8 +75,8 @@ class ConversationService:
             or (d.notifyName if d else None)
             or ""
         )
-        # Telefone real: _data.SenderAlt → strip ":<device>@<server>"
-        raw_alt = (d.senderAlt if d else None)
+        # Telefone real: _data.Info.SenderAlt → strip ":<device>@<server>"
+        raw_alt = (d.info.senderAlt if (d and d.info) else None)
         if raw_alt:
             lead_phone = raw_alt.split(":")[0].split("@")[0]
         else:
@@ -117,23 +117,31 @@ class ConversationService:
 
         sender_name = "Bot" if is_from_me else lead_name
 
-        msg = Message(
-            conversation_id=conv.id,
-            content=p.body,
-            type=_detect_type(p),
-            sender_name=sender_name,
-            is_from_lead=not is_from_me,
-            media_url=p.media.url if p.media else None,
-            waha_message_id=p.id,
-        )
-        db.add(msg)
-
-        conv.last_message = p.body or ""
-        conv.last_message_at = datetime.now(timezone.utc)
-        if not is_from_me:
-            conv.unread_count = (conv.unread_count or 0) + 1
-
+        # Persiste atualizações de lead_name/lead_phone na transação principal
         await db.flush()
+
+        # Insert da mensagem em savepoint — duplicate não derruba updates anteriores
+        from sqlalchemy.exc import IntegrityError
+        try:
+            async with db.begin_nested():
+                msg = Message(
+                    conversation_id=conv.id,
+                    content=p.body,
+                    type=_detect_type(p),
+                    sender_name=sender_name,
+                    is_from_lead=not is_from_me,
+                    media_url=p.media.url if p.media else None,
+                    waha_message_id=p.id,
+                )
+                db.add(msg)
+                conv.last_message = p.body or ""
+                conv.last_message_at = datetime.now(timezone.utc)
+                if not is_from_me:
+                    conv.unread_count = (conv.unread_count or 0) + 1
+                await db.flush()
+        except IntegrityError:
+            logger.warning("WAHA mensagem duplicada %s — ignorando", p.id)
+            return
 
         await broadcaster.publish("message", {
             "conversationId": str(conv.id),

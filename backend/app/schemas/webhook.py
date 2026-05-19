@@ -7,12 +7,18 @@ class WahaMediaPayload(BaseModel):
     mimetype: Optional[str] = None
 
 
+class WahaInnerInfo(BaseModel):
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+    senderAlt: Optional[str] = Field(None, alias="SenderAlt")
+
+
 class WahaInnerData(BaseModel):
     model_config = {"extra": "allow", "populate_by_name": True}
 
     notifyName: Optional[str] = None
     pushName: Optional[str] = Field(None, alias="PushName")
-    senderAlt: Optional[str] = Field(None, alias="SenderAlt")
+    info: Optional[WahaInnerInfo] = Field(None, alias="Info")
 
 
 class WahaMessagePayload(BaseModel):
