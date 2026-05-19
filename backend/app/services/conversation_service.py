@@ -67,30 +67,51 @@ class ConversationService:
         if conv is None and is_from_me:
             return
 
-        # Tenta obter o nome em todas as localizações possíveis do payload WAHA
-        notify_name = (
-            p.notifyName
-            or (p.inner_data.notifyName if p.inner_data else None)
+        d = p.inner_data
+        # Nome: _data.PushName > notifyName > número
+        display_name = (
+            (d.pushName if d else None)
+            or p.notifyName
+            or (d.notifyName if d else None)
             or ""
         )
-        logger.info("WAHA webhook | chat=%s fromMe=%s chatId=%r to=%r from=%r notifyName=%r",
-                    waha_chat_id, is_from_me, p.chat_id, p.to, p.from_field, p.notifyName)
-        lead_phone = waha_chat_id.split("@")[0]
-        lead_name = notify_name or lead_phone
+        # Telefone real: _data.SenderAlt → strip ":<device>@<server>"
+        raw_alt = (d.senderAlt if d else None)
+        if raw_alt:
+            lead_phone = raw_alt.split(":")[0].split("@")[0]
+        else:
+            lead_phone = waha_chat_id.split("@")[0]
+
+        lead_name = display_name or lead_phone
+
+        logger.info("WAHA webhook | chat=%s fromMe=%s pushName=%r senderAlt=%r phone=%s",
+                    waha_chat_id, is_from_me, (d.pushName if d else None), raw_alt, lead_phone)
 
         if conv is None:
-            conv = Conversation(
-                waha_chat_id=waha_chat_id,
-                lead_name=lead_name,
-                lead_phone=lead_phone,
-                session="Cloudy",
-                status=ConversationStatus.UNASSIGNED,
-            )
-            db.add(conv)
-            await db.flush()
-        elif notify_name and conv.lead_name == lead_phone:
-            # Atualiza o nome se antes estava salvo como número
-            conv.lead_name = lead_name
+            try:
+                conv = Conversation(
+                    waha_chat_id=waha_chat_id,
+                    lead_name=lead_name,
+                    lead_phone=lead_phone,
+                    session="Cloudy",
+                    status=ConversationStatus.UNASSIGNED,
+                )
+                db.add(conv)
+                await db.flush()
+            except Exception:
+                await db.rollback()
+                conv = await db.scalar(
+                    select(Conversation)
+                    .where(Conversation.waha_chat_id == waha_chat_id)
+                    .options(selectinload(Conversation.labels))
+                )
+                if conv is None:
+                    return
+        else:
+            if display_name and conv.lead_name == conv.lead_phone:
+                conv.lead_name = lead_name
+            if raw_alt and conv.lead_phone != lead_phone:
+                conv.lead_phone = lead_phone
 
         sender_name = "Bot" if is_from_me else lead_name
 
