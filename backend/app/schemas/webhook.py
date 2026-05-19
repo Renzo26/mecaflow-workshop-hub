@@ -11,6 +11,7 @@ class WahaInnerInfo(BaseModel):
     model_config = {"extra": "allow", "populate_by_name": True}
 
     senderAlt: Optional[str] = Field(None, alias="SenderAlt")
+    pushName: Optional[str] = Field(None, alias="PushName")
 
 
 class WahaInnerData(BaseModel):
