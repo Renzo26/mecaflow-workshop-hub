@@ -67,23 +67,25 @@ class ConversationService:
         if conv is None and is_from_me:
             return
 
-        # Nome: PushName > notifyName > número
+        # Nome: _data.PushName > notifyName > _data.notifyName > número
+        d = p.inner_data
         display_name = (
-            p.pushName
+            (d.pushName if d else None)
             or p.notifyName
-            or (p.inner_data.notifyName if p.inner_data else None)
+            or (d.notifyName if d else None)
             or ""
         )
-        # Telefone real: SenderAlt strip suffix ":<device>@<server>" → só dígitos
-        if p.senderAlt:
-            lead_phone = p.senderAlt.split(":")[0].split("@")[0]
+        # Telefone real: _data.SenderAlt → strip ":<device>@<server>"
+        raw_sender_alt = (d.senderAlt if d else None)
+        if raw_sender_alt:
+            lead_phone = raw_sender_alt.split(":")[0].split("@")[0]
         else:
             lead_phone = waha_chat_id.split("@")[0]
 
         lead_name = display_name or lead_phone
 
         logger.info("WAHA webhook | chat=%s fromMe=%s pushName=%r senderAlt=%r phone=%s",
-                    waha_chat_id, is_from_me, p.pushName, p.senderAlt, lead_phone)
+                    waha_chat_id, is_from_me, (d.pushName if d else None), raw_sender_alt, lead_phone)
 
         if conv is None:
             conv = Conversation(

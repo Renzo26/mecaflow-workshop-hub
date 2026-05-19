@@ -8,7 +8,11 @@ class WahaMediaPayload(BaseModel):
 
 
 class WahaInnerData(BaseModel):
+    model_config = {"extra": "allow"}
+
     notifyName: Optional[str] = None
+    pushName: Optional[str] = Field(None, alias="PushName")
+    senderAlt: Optional[str] = Field(None, alias="SenderAlt")
 
 
 class WahaMessagePayload(BaseModel):
@@ -22,8 +26,6 @@ class WahaMessagePayload(BaseModel):
     fromMe: bool = False
     hasMedia: bool = False
     notifyName: Optional[str] = None
-    pushName: Optional[str] = Field(None, alias="PushName")
-    senderAlt: Optional[str] = Field(None, alias="SenderAlt")
     media: Optional[WahaMediaPayload] = None
     inner_data: Optional[WahaInnerData] = Field(None, alias="_data")
 
