@@ -153,6 +153,15 @@ async def add_label(
     return LabelOut.model_validate(label)
 
 
+@router.delete("/{conv_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_conversation(
+    conv_id: uuid.UUID,
+    db: AsyncSession = Depends(get_session),
+):
+    conv = await _get_or_404(conv_id, db)
+    await conversation_service.delete_conversation(db, conv)
+
+
 @router.delete("/{conv_id}/labels/{label_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_label(
     conv_id: uuid.UUID,

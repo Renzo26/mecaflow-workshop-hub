@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, Send, MoreVertical, CheckCircle2, Tag, Loader2, RotateCcw, Pencil, Bot } from "lucide-react";
+import { Search, Send, MoreVertical, CheckCircle2, Tag, Loader2, RotateCcw, Pencil, Bot, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -96,6 +96,9 @@ function Conversas() {
   const [nomeDialogOpen, setNomeDialogOpen] = useState(false);
   const [nomeEdit, setNomeEdit] = useState("");
   const [salvandoNome, setSalvandoNome] = useState(false);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletando, setDeletando] = useState(false);
 
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -278,6 +281,23 @@ function Conversas() {
       toast.error(err instanceof Error ? err.message : "Erro ao salvar nome");
     } finally {
       setSalvandoNome(false);
+    }
+  };
+
+  const deletarConversa = async () => {
+    if (!sel) return;
+    setDeletando(true);
+    try {
+      await api.delete(`/conversations/${sel}`);
+      setConversas((prev) => prev.filter((c) => c.id !== sel));
+      setSel(null);
+      setMensagens([]);
+      setDeleteDialogOpen(false);
+      toast.success("Conversa removida");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao remover conversa");
+    } finally {
+      setDeletando(false);
     }
   };
 
@@ -479,6 +499,11 @@ function Conversas() {
                         <Tag className="h-4 w-4" />
                         Gerenciar etiquetas
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="gap-2 text-destructive focus:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                        Limpar conversa
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -541,6 +566,26 @@ function Conversas() {
             <Button variant="outline" onClick={() => setNomeDialogOpen(false)}>Cancelar</Button>
             <Button onClick={salvarNome} disabled={salvandoNome || !nomeEdit.trim()}>
               {salvandoNome ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Confirmar exclusão de conversa */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Limpar conversa?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Todas as mensagens de{" "}
+            <span className="font-medium text-foreground">{ativa?.lead_name}</span> serão
+            removidas permanentemente. Esta ação não pode ser desfeita.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={deletarConversa} disabled={deletando}>
+              {deletando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Limpar"}
             </Button>
           </DialogFooter>
         </DialogContent>

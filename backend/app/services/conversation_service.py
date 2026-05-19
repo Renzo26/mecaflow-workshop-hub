@@ -298,5 +298,12 @@ class ConversationService:
         await db.flush()
         return True
 
+    async def delete_conversation(self, db: AsyncSession, conv: Conversation) -> None:
+        from sqlalchemy import delete as sa_delete
+        from app.models.message import Message
+        await db.execute(sa_delete(Message).where(Message.conversation_id == conv.id))
+        await db.delete(conv)
+        await db.flush()
+
 
 conversation_service = ConversationService()
