@@ -68,16 +68,15 @@ class ConversationService:
             return
 
         d = p.inner_data
-        info = d.info if d else None
-        # Nome: _data.Info.PushName > notifyName > _data.notifyName > número
+        # Nome: _data.PushName > notifyName > número
         display_name = (
-            (info.pushName if info else None)
+            (d.pushName if d else None)
             or p.notifyName
             or (d.notifyName if d else None)
             or ""
         )
         # Telefone real: _data.Info.SenderAlt → strip ":<device>@<server>"
-        raw_alt = info.senderAlt if info else None
+        raw_alt = (d.info.senderAlt if (d and d.info) else None)
         if raw_alt:
             lead_phone = raw_alt.split(":")[0].split("@")[0]
         else:
