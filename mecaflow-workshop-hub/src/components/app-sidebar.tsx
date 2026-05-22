@@ -1,4 +1,5 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { clearAuth } from "@/lib/auth";
 import {
   LayoutDashboard,
   MessagesSquare,
@@ -39,6 +40,11 @@ const config = [
 ];
 
 export function AppSidebar() {
+  const navigate = useNavigate();
+  const handleLogout = () => {
+    clearAuth();
+    navigate({ to: "/login" });
+  };
   const path = useRouterState({ select: (s) => s.location.pathname });
   const isActive = (url: string, exact?: boolean) =>
     exact ? path === url : path === url || path.startsWith(url + "/");
@@ -98,11 +104,9 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Sair">
-              <Link to="/login">
-                <LogOut />
-                <span>Sair</span>
-              </Link>
+            <SidebarMenuButton onClick={handleLogout} tooltip="Sair">
+              <LogOut />
+              <span>Sair</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
