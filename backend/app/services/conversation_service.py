@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.models.conversation import Conversation, ConversationStatus
 from app.models.label import ConversationLabel
 from app.models.message import Message, MessageType
+from app.models.workshop import Workshop
 from app.schemas.webhook import WahaWebhookRequest
 from app.services.sse_service import broadcaster
 from app.services.waha_service import waha_service
@@ -38,6 +39,22 @@ class ConversationService:
         p = body.payload
         is_from_me = bool(p.fromMe)
 
+        # Resolve a oficina pela sessão WAHA do payload. Sem oficina vinculada,
+        # ignoramos o evento (evita criar conversas órfãs sem dono).
+        session_name = (body.session or "").strip()
+        if not session_name:
+            logger.warning("WAHA webhook sem 'session' — ignorando")
+            return
+        workshop = await db.scalar(
+            select(Workshop).where(Workshop.waha_session == session_name)
+        )
+        if workshop is None:
+            logger.warning(
+                "WAHA webhook | sessão %r não vinculada a nenhuma oficina — ignorando",
+                session_name,
+            )
+            return
+
         # chatId é o identificador canônico do WAHA (funciona para mensagens enviadas e recebidas).
         # Para mensagens enviadas via API externa (ex: n8n), "to" pode estar ausente — chatId resolve isso.
         if p.chat_id:
@@ -60,6 +77,7 @@ class ConversationService:
         conv = await db.scalar(
             select(Conversation)
             .where(Conversation.waha_chat_id == waha_chat_id)
+            .where(Conversation.workshop_id == workshop.id)
             .options(selectinload(Conversation.labels))
         )
 
@@ -97,10 +115,11 @@ class ConversationService:
         if conv is None:
             try:
                 conv = Conversation(
+                    workshop_id=workshop.id,
                     waha_chat_id=waha_chat_id,
                     lead_name=lead_name,
                     lead_phone=lead_phone,
-                    session="Cloudy",
+                    session=session_name,
                     status=ConversationStatus.UNASSIGNED,
                 )
                 db.add(conv)
@@ -110,6 +129,7 @@ class ConversationService:
                 conv = await db.scalar(
                     select(Conversation)
                     .where(Conversation.waha_chat_id == waha_chat_id)
+                    .where(Conversation.workshop_id == workshop.id)
                     .options(selectinload(Conversation.labels))
                 )
                 if conv is None:
@@ -151,6 +171,7 @@ class ConversationService:
             return
 
         await broadcaster.publish("message", {
+            "workshopId": str(conv.workshop_id),
             "conversationId": str(conv.id),
             "messageId": str(msg.id),
             "content": msg.content,
@@ -158,22 +179,28 @@ class ConversationService:
             "senderName": msg.sender_name,
             "isFromLead": msg.is_from_lead,
             "createdAt": msg.created_at.isoformat() if msg.created_at else None,
-        })
+        }, workshop_id=str(conv.workshop_id))
         await broadcaster.publish("conversation", {
+            "workshopId": str(conv.workshop_id),
             "id": str(conv.id),
             "leadName": conv.lead_name,
             "status": conv.status.value,
             "unreadCount": conv.unread_count,
             "lastMessage": conv.last_message,
-        })
+        }, workshop_id=str(conv.workshop_id))
 
     async def list_conversations(
         self,
         db: AsyncSession,
+        workshop_id: uuid.UUID,
         tab: str = "ALL",
         agent_id: Optional[str] = None,
     ) -> list[Conversation]:
-        q = select(Conversation).options(selectinload(Conversation.labels))
+        q = (
+            select(Conversation)
+            .where(Conversation.workshop_id == workshop_id)
+            .options(selectinload(Conversation.labels))
+        )
 
         if tab == "RESOLVED":
             q = q.where(Conversation.status == ConversationStatus.RESOLVED)
@@ -188,10 +215,16 @@ class ConversationService:
         result = await db.scalars(q)
         return list(result.all())
 
-    async def get_conversation(self, db: AsyncSession, conv_id: uuid.UUID) -> Optional[Conversation]:
+    async def get_conversation(
+        self,
+        db: AsyncSession,
+        conv_id: uuid.UUID,
+        workshop_id: uuid.UUID,
+    ) -> Optional[Conversation]:
         return await db.scalar(
             select(Conversation)
             .where(Conversation.id == conv_id)
+            .where(Conversation.workshop_id == workshop_id)
             .options(selectinload(Conversation.labels))
         )
 
@@ -236,7 +269,9 @@ class ConversationService:
         conv.last_message_at = datetime.now(timezone.utc)
         await db.flush()
 
+        wid = str(conv.workshop_id)
         await broadcaster.publish("message", {
+            "workshopId": wid,
             "conversationId": str(conv.id),
             "messageId": str(msg.id),
             "content": msg.content,
@@ -244,13 +279,18 @@ class ConversationService:
             "senderName": msg.sender_name,
             "isFromLead": False,
             "createdAt": msg.created_at.isoformat() if msg.created_at else None,
-        })
+        }, workshop_id=wid)
         return msg
 
     async def mark_as_read(self, db: AsyncSession, conv: Conversation) -> None:
         conv.unread_count = 0
         await db.flush()
-        await broadcaster.publish("conversation", {"id": str(conv.id), "unreadCount": 0})
+        wid = str(conv.workshop_id)
+        await broadcaster.publish(
+            "conversation",
+            {"workshopId": wid, "id": str(conv.id), "unreadCount": 0},
+            workshop_id=wid,
+        )
 
     async def reopen(self, db: AsyncSession, conv: Conversation) -> Conversation:
         conv.status = ConversationStatus.UNASSIGNED
@@ -258,14 +298,24 @@ class ConversationService:
         conv.assigned_agent_name = None
         await db.flush()
         await db.refresh(conv)
-        await broadcaster.publish("conversation", {"id": str(conv.id), "status": conv.status.value})
+        wid = str(conv.workshop_id)
+        await broadcaster.publish(
+            "conversation",
+            {"workshopId": wid, "id": str(conv.id), "status": conv.status.value},
+            workshop_id=wid,
+        )
         return conv
 
     async def update_name(self, db: AsyncSession, conv: Conversation, lead_name: str) -> Conversation:
         conv.lead_name = lead_name.strip()
         await db.flush()
         await db.refresh(conv)
-        await broadcaster.publish("conversation", {"id": str(conv.id), "leadName": conv.lead_name})
+        wid = str(conv.workshop_id)
+        await broadcaster.publish(
+            "conversation",
+            {"workshopId": wid, "id": str(conv.id), "leadName": conv.lead_name},
+            workshop_id=wid,
+        )
         return conv
 
     async def resolve(self, db: AsyncSession, conv: Conversation) -> Conversation:
@@ -273,7 +323,12 @@ class ConversationService:
         conv.unread_count = 0
         await db.flush()
         await db.refresh(conv)
-        await broadcaster.publish("conversation", {"id": str(conv.id), "status": conv.status.value})
+        wid = str(conv.workshop_id)
+        await broadcaster.publish(
+            "conversation",
+            {"workshopId": wid, "id": str(conv.id), "status": conv.status.value},
+            workshop_id=wid,
+        )
         return conv
 
     async def assign(
@@ -284,12 +339,14 @@ class ConversationService:
         conv.status = ConversationStatus.HUMAN
         await db.flush()
         await db.refresh(conv)
+        wid = str(conv.workshop_id)
         await broadcaster.publish("conversation", {
+            "workshopId": wid,
             "id": str(conv.id),
             "status": conv.status.value,
             "assignedAgentId": agent_id,
             "assignedAgentName": agent_name,
-        })
+        }, workshop_id=wid)
         return conv
 
     async def set_human(
@@ -300,7 +357,12 @@ class ConversationService:
         conv.status = ConversationStatus.HUMAN
         await db.flush()
         await db.refresh(conv)
-        await broadcaster.publish("conversation", {"id": str(conv.id), "status": conv.status.value})
+        wid = str(conv.workshop_id)
+        await broadcaster.publish(
+            "conversation",
+            {"workshopId": wid, "id": str(conv.id), "status": conv.status.value},
+            workshop_id=wid,
+        )
         return conv
 
     async def set_bot(
@@ -310,7 +372,12 @@ class ConversationService:
         conv.status = ConversationStatus.BOT
         await db.flush()
         await db.refresh(conv)
-        await broadcaster.publish("conversation", {"id": str(conv.id), "status": conv.status.value})
+        wid = str(conv.workshop_id)
+        await broadcaster.publish(
+            "conversation",
+            {"workshopId": wid, "id": str(conv.id), "status": conv.status.value},
+            workshop_id=wid,
+        )
         return conv
 
     async def add_label(

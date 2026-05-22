@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum, Integer, String, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,6 +22,12 @@ class Conversation(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workshop_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workshops.id", name="fk_conversations_workshop_id"),
+        nullable=False,
+        index=True,
     )
     waha_chat_id: Mapped[str] = mapped_column(
         String(100), unique=True, nullable=False, index=True
@@ -51,6 +57,9 @@ class Conversation(Base):
         nullable=False,
     )
 
+    workshop: Mapped["Workshop"] = relationship(  # noqa: F821
+        "Workshop", back_populates="conversations"
+    )
     messages: Mapped[list["Message"]] = relationship(  # noqa: F821
         "Message", back_populates="conversation", lazy="select"
     )

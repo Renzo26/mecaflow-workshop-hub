@@ -41,4 +41,5 @@ class WahaWebhookRequest(BaseModel):
     model_config = {"extra": "allow"}
 
     event: Optional[str] = None
+    session: Optional[str] = None
     payload: WahaMessagePayload

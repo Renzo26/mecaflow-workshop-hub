@@ -67,17 +67,18 @@ async def _build_context(db: AsyncSession, workshop_id: uuid.UUID) -> str:
     )).all())
 
     open_convs = await db.scalar(
-        select(func.count(Conversation.id)).where(
-            Conversation.status.in_([
-                ConversationStatus.UNASSIGNED,
-                ConversationStatus.HUMAN,
-                ConversationStatus.BOT,
-            ])
-        )
+        select(func.count(Conversation.id))
+        .where(Conversation.workshop_id == workshop_id)
+        .where(Conversation.status.in_([
+            ConversationStatus.UNASSIGNED,
+            ConversationStatus.HUMAN,
+            ConversationStatus.BOT,
+        ]))
     ) or 0
 
     resolved_today = await db.scalar(
         select(func.count(Conversation.id))
+        .where(Conversation.workshop_id == workshop_id)
         .where(Conversation.status == ConversationStatus.RESOLVED)
         .where(Conversation.updated_at >= today_start)
     ) or 0

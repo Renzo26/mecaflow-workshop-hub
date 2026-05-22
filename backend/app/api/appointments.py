@@ -108,7 +108,11 @@ async def delete_appointment(
         f"Caso queira remarcar, é só nos chamar aqui! 😊 — {workshop_name}"
     )
 
-    conv = await db.scalar(select(Conversation).where(Conversation.waha_chat_id == waha_chat_id))
+    conv = await db.scalar(
+        select(Conversation)
+        .where(Conversation.waha_chat_id == waha_chat_id)
+        .where(Conversation.workshop_id == workshop_id)
+    )
     if conv:
         # Conversa encontrada: envia pelo send_message (salva no DB + manda pelo WAHA)
         await conversation_service.send_message(db, conv, msg_text, "Bot")

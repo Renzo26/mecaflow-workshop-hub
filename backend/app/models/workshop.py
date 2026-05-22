@@ -26,6 +26,7 @@ class Workshop(Base):
     business_hours: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     services: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
     bot_info: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
+    waha_session: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -41,4 +42,7 @@ class Workshop(Base):
     )
     labels: Mapped[list["WorkshopLabel"]] = relationship(  # noqa: F821
         "WorkshopLabel", back_populates="workshop", cascade="all, delete-orphan"
+    )
+    conversations: Mapped[list["Conversation"]] = relationship(  # noqa: F821
+        "Conversation", back_populates="workshop", cascade="all, delete-orphan"
     )
